@@ -63,6 +63,10 @@ public class AfreecaTVChatClient implements AutoCloseable {
     private final String bno;
     private final SSLContext sslContext;
 
+    public String getBid() {
+        return this.bid;
+    }
+
     private AfreecaTVChatClient(Builder builder) throws Exception {
         this.bid = Objects.requireNonNull(builder.bid, "BID must not be null");
         this.bno = builder.bno != null ? builder.bno : getBnoFromBid(this.bid);
