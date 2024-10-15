@@ -246,14 +246,14 @@ public class AfreecaTVChatClient implements AutoCloseable {
     public static String getBnoFromBid(String bid) throws Exception {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://play.afreecatv.com/" + bid))
+                .uri(URI.create("https://play.sooplive.co.kr/" + bid))
                 .GET()
                 .build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         String responseBody = response.body();
 
-        Pattern pattern = Pattern.compile("<meta property=\"og:image\" content=\"https://liveimg\\.afreecatv\\.com/m/(\\d+)\\?");
+        Pattern pattern = Pattern.compile("<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.co\\.kr/m/(\\d+)\\?");
         Matcher matcher = pattern.matcher(responseBody);
 
         if (matcher.find()) {
@@ -264,7 +264,7 @@ public class AfreecaTVChatClient implements AutoCloseable {
     }
 
     private static ChannelInfo getPlayerLive(String bno, String bid) throws Exception {
-        String url = "https://live.afreecatv.com/afreeca/player_live_api.php";
+        String url = "https://live.sooplive.co.kr/afreeca/player_live_api.php";
         String requestBody = String.format("bid=%s&bno=%s&type=live&confirm_adult=false&player_type=html5&mode=landing&from_api=0&pwd=&stream_type=common&quality=HD", bid, bno);
 
         HttpClient client = HttpClient.newHttpClient();
