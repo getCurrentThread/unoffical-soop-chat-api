@@ -1,4 +1,4 @@
-package com.github.getcurrentthread.afreecatvapi.util;
+package com.github.getcurrentthread.soopapi.util;
 
 import java.security.cert.X509Certificate;
 

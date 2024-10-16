@@ -1,4 +1,4 @@
-package com.github.getcurrentthread.afreecatvapi.model;
+package com.github.getcurrentthread.soopapi.model;
 
 public class ChannelInfo {
     private static final String SEPARATOR = "+" + "-".repeat(70) + "+";

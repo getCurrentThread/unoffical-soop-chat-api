@@ -1,4 +1,4 @@
-package com.github.getcurrentthread.afreecatvapi.client;
+package com.github.getcurrentthread.soopapi.client;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -23,32 +23,32 @@ import java.util.regex.Pattern;
 
 import javax.net.ssl.SSLContext;
 
-import com.github.getcurrentthread.afreecatvapi.decoder.AdconEffectDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.ChatIMessageDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.ChocolateDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.GemItemDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.GiftOGQEmoticonDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.GiftSubscriptionDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.GiftTicketDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.IMessageDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.ItemDropsDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.LiveCaptionDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.ManagerChatDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.OGQEmoticonDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.QuickViewDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.SendBalloonDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.SetAdminFlagDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.SlowModeDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.VODBalloonDecoder;
-import com.github.getcurrentthread.afreecatvapi.decoder.VideoBalloonDecoder;
-import com.github.getcurrentthread.afreecatvapi.model.ChannelInfo;
-import com.github.getcurrentthread.afreecatvapi.model.MessageType;
-import com.github.getcurrentthread.afreecatvapi.util.DefaultSSLContext;
+import com.github.getcurrentthread.soopapi.decoder.AdconEffectDecoder;
+import com.github.getcurrentthread.soopapi.decoder.ChatIMessageDecoder;
+import com.github.getcurrentthread.soopapi.decoder.ChocolateDecoder;
+import com.github.getcurrentthread.soopapi.decoder.GemItemDecoder;
+import com.github.getcurrentthread.soopapi.decoder.GiftOGQEmoticonDecoder;
+import com.github.getcurrentthread.soopapi.decoder.GiftSubscriptionDecoder;
+import com.github.getcurrentthread.soopapi.decoder.GiftTicketDecoder;
+import com.github.getcurrentthread.soopapi.decoder.IMessageDecoder;
+import com.github.getcurrentthread.soopapi.decoder.ItemDropsDecoder;
+import com.github.getcurrentthread.soopapi.decoder.LiveCaptionDecoder;
+import com.github.getcurrentthread.soopapi.decoder.ManagerChatDecoder;
+import com.github.getcurrentthread.soopapi.decoder.OGQEmoticonDecoder;
+import com.github.getcurrentthread.soopapi.decoder.QuickViewDecoder;
+import com.github.getcurrentthread.soopapi.decoder.SendBalloonDecoder;
+import com.github.getcurrentthread.soopapi.decoder.SetAdminFlagDecoder;
+import com.github.getcurrentthread.soopapi.decoder.SlowModeDecoder;
+import com.github.getcurrentthread.soopapi.decoder.VODBalloonDecoder;
+import com.github.getcurrentthread.soopapi.decoder.VideoBalloonDecoder;
+import com.github.getcurrentthread.soopapi.model.ChannelInfo;
+import com.github.getcurrentthread.soopapi.model.MessageType;
+import com.github.getcurrentthread.soopapi.util.DefaultSSLContext;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-public class AfreecaTVChatClient implements AutoCloseable {
-    private static final Logger LOGGER = Logger.getLogger(AfreecaTVChatClient.class.getName());
+public class SOOPChatClient implements AutoCloseable {
+    private static final Logger LOGGER = Logger.getLogger(SOOPChatClient.class.getName());
     private static final String F = "\u000c";
     private static final String ESC = "\u001b\t";
 
@@ -71,7 +71,7 @@ public class AfreecaTVChatClient implements AutoCloseable {
         return this.isConnected;
     }
 
-    private AfreecaTVChatClient(Builder builder) throws Exception {
+    private SOOPChatClient(Builder builder) throws Exception {
         this.bid = Objects.requireNonNull(builder.bid, "BID must not be null");
         this.bno = builder.bno != null ? builder.bno : getBnoFromBid(this.bid);
         this.sslContext = builder.sslContext != null ? builder.sslContext : getDefaultSSLContext();
@@ -352,8 +352,8 @@ public class AfreecaTVChatClient implements AutoCloseable {
             return this;
         }
 
-        public AfreecaTVChatClient build() throws Exception {
-            return new AfreecaTVChatClient(this);
+        public SOOPChatClient build() throws Exception {
+            return new SOOPChatClient(this);
         }
     }
 }
