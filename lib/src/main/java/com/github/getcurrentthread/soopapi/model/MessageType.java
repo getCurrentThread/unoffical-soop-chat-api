@@ -1,4 +1,4 @@
-package com.github.getcurrentthread.afreecatvapi.model;
+package com.github.getcurrentthread.soopapi.model;
 
 public enum MessageType {
     KEEP_ALIVE(0),

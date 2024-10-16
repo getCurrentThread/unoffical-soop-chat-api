@@ -1,17 +1,16 @@
-package com.github.getcurrentthread.afreecatvapi.decoder;
+package com.github.getcurrentthread.soopapi.decoder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class SendBalloonDecoder implements IMessageDecoder {
+public class ChocolateDecoder implements IMessageDecoder {
     @Override
     public Map<String, Object> decode(String[] parts) {
         Map<String, Object> result = new HashMap<>();
         result.put("bjId", parts[1]);
         result.put("senderId", parts[2]);
         result.put("senderNickname", parts[3]);
-        result.put("balloonCount", Integer.valueOf(parts[4]));
-        result.put("balloonInfo", parts[8]);
+        result.put("count", Integer.valueOf(parts[4]));
         return result;
     }
 }

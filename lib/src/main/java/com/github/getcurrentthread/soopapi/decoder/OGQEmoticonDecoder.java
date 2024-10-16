@@ -1,6 +1,4 @@
-package com.github.getcurrentthread.afreecatvapi.decoder;
-
-import com.github.getcurrentthread.afreecatvapi.decoder.IMessageDecoder;
+package com.github.getcurrentthread.soopapi.decoder;
 
 import java.util.HashMap;
 import java.util.Map;

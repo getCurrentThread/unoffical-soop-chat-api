@@ -1,10 +1,10 @@
-# 비공식 아프리카TV 채팅 API
+# 비공식 SOOP 채팅 API
 
-이 프로젝트는 아프리카TV의 채팅 시스템과 상호 작용할 수 있는 비공식 Java 라이브러리입니다. 개발자들이 아프리카TV 채팅방에 연결하고, 메시지를 수신하며, 다양한 이벤트를 처리할 수 있도록 해줍니다.
+이 프로젝트는 SOOP의 채팅 시스템과 상호 작용할 수 있는 비공식 Java 라이브러리입니다. 개발자들이 SOOP 채팅방에 연결하고, 메시지를 수신하며, 다양한 이벤트를 처리할 수 있도록 해줍니다.
 
 ## 주요 기능
 
-- WebSocket을 사용하여 아프리카TV 채팅방에 연결
+- WebSocket을 사용하여 SOOP 채팅방에 연결
 - 다양한 메시지 유형(채팅 메시지, 풍선, 이모티콘 등) 디코딩 및 처리
 - 채팅 이벤트 처리를 위한 사용하기 쉬운 옵저버 패턴
 - 연결 유지를 위한 자동 재연결 및 핑 메커니즘
@@ -21,13 +21,13 @@
 1. 저장소 복제:
 
    ```
-   git clone https://github.com/getCurrentThread/unofficial-afreecatv-chat-api.git
+   git clone https://github.com/getCurrentThread/unofficial-soop-chat-api.git
    ```
 
 2. 프로젝트 빌드:
 
    ```
-   cd unofficial-afreecatv-chat-api
+   cd unofficial-soop-chat-api
    ./gradlew build
    ```
 
@@ -35,30 +35,30 @@
 
 ## 사용 방법
 
-아프리카TV 채팅 API를 사용하는 기본 예제입니다:
+SOOP 채팅 API를 사용하는 기본 예제입니다:
 
 ```java
-import com.github.getcurrentthread.afreecatvapi.client.AfreecaTVChatClient;
-import com.github.getcurrentthread.afreecatvapi.client.IChatMessageObserver;
+import com.github.getcurrentthread.soopapi.client.soopChatClient;
+import com.github.getcurrentthread.soopapi.client.IChatMessageObserver;
 
 public class Example {
-    public static void main(String[] args) throws Exception {
-        AfreecaTVChatClient client = new AfreecaTVChatClient.Builder()
-            .bid("방송인ID")
-            .build();
+   public static void main(String[] args) throws Exception {
+      SOOPChatClient client = new SOOPChatClient.Builder()
+              .bid("방송인ID")
+              .build();
 
-        client.addObserver(new IChatMessageObserver() {
-            @Override
-            public void notify(Map<String, Object> message) {
-                System.out.println("수신된 메시지: " + message);
-            }
-        });
+      client.addObserver(new IChatMessageObserver() {
+         @Override
+         public void notify(Map<String, Object> message) {
+            System.out.println("수신된 메시지: " + message);
+         }
+      });
 
-        client.connectToChat().join();
+      client.connectToChat().join();
 
-        // 프로그램 실행 유지
-        Thread.sleep(Long.MAX_VALUE);
-    }
+      // 프로그램 실행 유지
+      Thread.sleep(Long.MAX_VALUE);
+   }
 }
 ```
 
@@ -92,6 +92,6 @@ public class Example {
 
 ## 면책 조항
 
-이는 비공식 API이며 아프리카TV와 제휴되거나 승인되지 않았습니다. 사용에 따른 책임은 사용자에게 있습니다.
+이는 비공식 API이며 SOOP와 제휴되거나 승인되지 않았습니다. 사용에 따른 책임은 사용자에게 있습니다.
 
-\*warning: 아프리카TV 플랫폼의 웹소켓 통신 방식이 변경되면 동작하지 않을 수 있습니다. (일부 미구현 및 malfunction 있음)
+\*warning: SOOP 플랫폼의 웹소켓 통신 방식이 변경되면 동작하지 않을 수 있습니다. (일부 미구현 및 malfunction 있음)

@@ -1,4 +1,4 @@
-package com.github.getcurrentthread.afreecatvapi.client;
+package com.github.getcurrentthread.soopapi.client;
 
 import java.util.Map;
 

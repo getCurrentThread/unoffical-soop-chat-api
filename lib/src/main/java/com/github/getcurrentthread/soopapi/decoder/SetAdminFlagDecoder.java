@@ -1,13 +1,13 @@
-package com.github.getcurrentthread.afreecatvapi.decoder;
+package com.github.getcurrentthread.soopapi.decoder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class LiveCaptionDecoder implements IMessageDecoder {
+public class SetAdminFlagDecoder implements IMessageDecoder {
     @Override
     public Map<String, Object> decode(String[] parts) {
         Map<String, Object> result = new HashMap<>();
-        result.put("caption", parts[0]);
+        result.put("flag", parts[0]);
         return result;
     }
 }
