@@ -1,7 +1,7 @@
 package com.github.getcurrentthread.soopapi.client;
 
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.model.Message;
 
 public interface IChatMessageObserver {
-    void notify(Map<String, Object> message);
+    void notify(Message message);
 }

@@ -38,18 +38,22 @@
 SOOP 채팅 API를 사용하는 기본 예제입니다:
 
 ```java
-import com.github.getcurrentthread.soopapi.client.soopChatClient;
+import com.github.getcurrentthread.soopapi.client.SOOPChatClient;
 import com.github.getcurrentthread.soopapi.client.IChatMessageObserver;
+import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
+import com.github.getcurrentthread.soopapi.model.Message;
 
 public class Example {
    public static void main(String[] args) throws Exception {
-      SOOPChatClient client = new SOOPChatClient.Builder()
+      SOOPChatConfig config = new SOOPChatConfig.Builder()
               .bid("방송인ID")
               .build();
 
+      SOOPChatClient client = new SOOPChatClient(config);
+
       client.addObserver(new IChatMessageObserver() {
          @Override
-         public void notify(Map<String, Object> message) {
+         public void notify(Message message) {
             System.out.println("수신된 메시지: " + message);
          }
       });
@@ -66,19 +70,28 @@ public class Example {
 
 이 라이브러리는 다음을 포함한 다양한 메시지 유형의 디코딩을 지원합니다:
 
-- 채팅 메시지
-- 풍선
-- OGQ 이모티콘
-- 매니저 채팅 메시지
-- 초콜릿
-- 퀵뷰
-- 선물 티켓
-- 애드콘 효과
-- 비디오 풍선
-- 구독
-- 아이템 드롭
-- 젬 아이템
-- 실시간 자막
+- 채팅 메시지 (CHAT_MESSAGE)
+- 풍선 (SEND_BALLOON, SEND_BALLOON_SUB)
+- OGQ 이모티콘 (OGQ_EMOTICON, OGQ_EMOTICON_GIFT)
+- 매니저 채팅 메시지 (MANAGER_CHAT)
+- 초콜릿 (CHOCOLATE, CHOCOLATE_SUB)
+- 퀵뷰 (SEND_QUICK_VIEW)
+- 선물 티켓 (GIFT_TICKET)
+- 애드콘 효과 (ADCON_EFFECT)
+- 비디오 풍선 (VIDEO_BALLOON)
+- 구독 (SEND_SUBSCRIPTION)
+- 아이템 드롭 (ITEM_DROPS)
+- 젬 아이템 (GEM_ITEM_SEND)
+- 실시간 자막 (LIVE_CAPTION)
+- 채널 입장/퇴장 (JOIN_CHANNEL, QUIT_CHANNEL)
+- 유저 플래그 설정 (SET_USER_FLAG)
+- 매니저 설정 (SET_SUB_BJ)
+- 닉네임 변경 (SET_NICKNAME)
+- 얼음방 모드 (ICE_MODE, ICE_MODE_EX)
+- 팬레터 (SEND_FAN_LETTER, SEND_FAN_LETTER_SUB)
+- 미션 관련 (MISSION, MISSION_SETTLE)
+- 번역 관련 (TRANSLATION, TRANSLATION_STATE)
+- 그 외 다양한 시스템 메시지
 
 ## 기여하기
 
@@ -94,4 +107,4 @@ public class Example {
 
 이는 비공식 API이며 SOOP와 제휴되거나 승인되지 않았습니다. 사용에 따른 책임은 사용자에게 있습니다.
 
-\*warning: SOOP 플랫폼의 웹소켓 통신 방식이 변경되면 동작하지 않을 수 있습니다. (일부 미구현 및 malfunction 있음)
+_주의: SOOP 플랫폼의 웹소켓 통신 방식이 변경되면 동작하지 않을 수 있습니다._
