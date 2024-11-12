@@ -91,6 +91,7 @@ public class Example {
 - 팬레터 (SEND_FAN_LETTER, SEND_FAN_LETTER_SUB)
 - 미션 관련 (MISSION, MISSION_SETTLE)
 - 번역 관련 (TRANSLATION, TRANSLATION_STATE)
+- 채팅 금지 (SET_DUMB)
 - 그 외 다양한 시스템 메시지
 
 ## 기여하기
