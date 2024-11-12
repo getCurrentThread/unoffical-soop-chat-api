@@ -1,7 +1,6 @@
 package com.github.getcurrentthread.soopapi.websocket;
 
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
-import com.github.getcurrentthread.soopapi.constant.SOOPConstants;
 import com.github.getcurrentthread.soopapi.exception.SOOPChatException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
 import com.github.getcurrentthread.soopapi.util.SSLContextProvider;
@@ -10,6 +9,7 @@ import javax.net.ssl.SSLContext;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +19,7 @@ import java.util.logging.Logger;
 
 public class WebSocketManager {
     private static final Logger LOGGER = Logger.getLogger(WebSocketManager.class.getName());
+    private static final long PING_INTERVAL_SECONDS = 60;
 
     private final SOOPChatConfig config;
     private final SSLContext sslContext;
@@ -51,13 +52,14 @@ public class WebSocketManager {
     }
 
     private void sendInitialPackets(ChannelInfo channelInfo) {
-        String connectPacket = SOOPConstants.ESC + "000100000600" + SOOPConstants.F.repeat(3) + "16" + SOOPConstants.F;
-        String joinPacket = SOOPConstants.ESC + "0002" + String.format("%06d", calculateByteSize(channelInfo.CHATNO)) + "00" + SOOPConstants.F + channelInfo.CHATNO + SOOPConstants.F.repeat(5);
-
+        // 초기 연결 패킷 전송
+        String connectPacket = WebSocketPacketBuilder.createConnectPacket();
         webSocket.sendText(connectPacket, true)
                 .thenRun(() -> {
                     try {
-                        Thread.sleep(3000);
+                        Thread.sleep(3000); // 연결 안정화를 위한 대기
+                        // 채팅방 입장 패킷 전송
+                        String joinPacket = WebSocketPacketBuilder.createJoinPacket(channelInfo);
                         webSocket.sendText(joinPacket, true);
                     } catch (InterruptedException e) {
                         LOGGER.log(Level.WARNING, "Interrupted while sending initial packets", e);
@@ -67,12 +69,12 @@ public class WebSocketManager {
     }
 
     private void startPingScheduler() {
-        String pingPacket = SOOPConstants.ESC + "000000000100" + SOOPConstants.F;
+        String pingPacket = WebSocketPacketBuilder.createPingPacket();
         scheduler.scheduleAtFixedRate(() -> {
             if (webSocket != null) {
                 webSocket.sendText(pingPacket, true);
             }
-        }, 60, 60, TimeUnit.SECONDS);
+        }, PING_INTERVAL_SECONDS, PING_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
     public void sendMessage(String message) {
@@ -94,7 +96,4 @@ public class WebSocketManager {
         return isConnected.get();
     }
 
-    private int calculateByteSize(String string) {
-        return string.getBytes().length + 6;
-    }
 }
