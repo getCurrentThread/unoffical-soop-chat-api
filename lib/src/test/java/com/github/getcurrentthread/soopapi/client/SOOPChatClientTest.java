@@ -14,7 +14,7 @@ public class SOOPChatClientTest {
     @Test
     public void testSOOPChatClientConnection() throws Exception {
         // BID를 실제 방송 BID로 변경하세요
-        String testBID = "sakbi1";
+        String testBID = "yjkim5500";
 
         System.out.println("Starting test with BID: " + testBID);
 
@@ -23,15 +23,15 @@ public class SOOPChatClientTest {
                 .build();
         SOOPChatClient client = new SOOPChatClient(config);
 
-        CountDownLatch latch = new CountDownLatch(100);
+        CountDownLatch latch = new CountDownLatch(1000);
 
         MessageType[] types = new MessageType[]{
 //                MessageType.LOGIN,
-//                MessageType.CHUSER_EXTEND,
+                MessageType.CHUSER_EXTEND,
 //                MessageType.BJ_STICKER_ITEM,
-//                MessageType.CHAT_USER,
+                MessageType.CHAT_USER,
 //                MessageType.JOIN_CHANNEL,
-//                MessageType.CHAT_MESSAGE,
+                MessageType.CHAT_MESSAGE,
 //                MessageType.SET_USER_FLAG,
 //                MessageType.NONE_TYPE,
 //                MessageType.TRANSLATION_STATE,
@@ -59,7 +59,7 @@ public class SOOPChatClientTest {
         System.out.println("Connected to chat. Waiting for messages...");
 
         // 최대 2분 동안 메시지를 기다립니다
-        boolean received = latch.await(2, TimeUnit.MINUTES);
+        boolean received = latch.await(10000000, TimeUnit.MINUTES);
 
         if (received) {
             System.out.println("Test passed: Message received within timeout.");

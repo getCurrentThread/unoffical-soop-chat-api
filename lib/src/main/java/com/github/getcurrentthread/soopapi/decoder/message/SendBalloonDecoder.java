@@ -15,6 +15,11 @@ public class SendBalloonDecoder implements IMessageDecoder {
         result.put("fileName", parts[7]);
         result.put("isDefault", "1".equals(parts[8]));
         result.put("isTopFan", Integer.parseInt(parts[9]));
+
+        // TTS 데이터 추가
+        if (parts.length > 10) {
+            result.put("ttsData", parts[10]);
+        }
         return result;
     }
 }
