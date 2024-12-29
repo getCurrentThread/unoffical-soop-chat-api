@@ -3,36 +3,50 @@ package com.github.getcurrentthread.soopapi.util;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class SSLContextProvider {
-    private static SSLContext instance;
+    private static final Logger LOGGER = Logger.getLogger(SSLContextProvider.class.getName());
+    private static volatile SSLContext instance;
 
     private SSLContextProvider() {
     }
 
-    public static synchronized SSLContext getInstance() {
+    public static SSLContext getInstance() {
         if (instance == null) {
-            try {
-                TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
-                    @Override
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[0];
-                    }
+            synchronized (SSLContextProvider.class) {
+                if (instance == null) {
+                    try {
+                        LOGGER.info("Initializing SSLContext");
+                        TrustManager[] trustAllCerts = new TrustManager[]{
+                            new X509TrustManager() {
+                                @Override
+                                public X509Certificate[] getAcceptedIssuers() {
+                                    return new X509Certificate[0];
+                                }
 
-                    @Override
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
-                    }
+                                @Override
+                                public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                                }
 
-                    @Override
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
-                    }
-                }};
+                                @Override
+                                public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                                }
+                            }
+                        };
 
-                instance = SSLContext.getInstance("TLS");
-                instance.init(null, trustAllCerts, new java.security.SecureRandom());
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to initialize SSL context", e);
+                        SSLContext context = SSLContext.getInstance("TLS");
+                        context.init(null, trustAllCerts, new SecureRandom());
+                        instance = context;
+                        LOGGER.info("SSLContext initialized successfully");
+                    } catch (Exception e) {
+                        LOGGER.log(Level.SEVERE, "Failed to initialize SSL context", e);
+                        throw new RuntimeException("Failed to initialize SSL context", e);
+                    }
+                }
             }
         }
         return instance;
