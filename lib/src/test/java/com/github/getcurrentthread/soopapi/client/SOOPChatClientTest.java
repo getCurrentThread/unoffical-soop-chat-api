@@ -70,17 +70,7 @@ public class SOOPChatClientTest {
             MessageType.QUIT_CHANNEL
         };
 
-        client.addObserver(message -> {
-            LOGGER.info("Message received: " + message);
-            
-            MessageType type = message.getType();
-            LOGGER.info("Message type: " + type);
-            
-            if (Arrays.stream(types).anyMatch(t -> t == type)) {
-                LOGGER.info("Matched message type: " + type);
-                messageLatch.countDown();
-            }
-        });
+        client.addObserver(new ExampleMessageHandler());
 
         LOGGER.info("Connecting to chat...");
         
