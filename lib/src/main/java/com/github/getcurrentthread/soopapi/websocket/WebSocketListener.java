@@ -1,13 +1,14 @@
 package com.github.getcurrentthread.soopapi.websocket;
 
-import com.github.getcurrentthread.soopapi.constant.SOOPConstants;
-import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.github.getcurrentthread.soopapi.constant.SOOPConstants;
+import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
 
 public class WebSocketListener implements WebSocket.Listener {
     private static final Logger LOGGER = Logger.getLogger(WebSocketListener.class.getName());
@@ -55,7 +56,10 @@ public class WebSocketListener implements WebSocket.Listener {
             if (last) {
                 buffer.flip();
                 String message = StandardCharsets.UTF_8.decode(buffer).toString();
-                debugLog("Complete message ready for processing: " + message.replace(SOOPConstants.ESC, "\\ESC").replace(SOOPConstants.F, "\\F"));
+                debugLog(
+                        "Complete message ready for processing: "
+                                + message.replace(SOOPConstants.ESC, "\\ESC")
+                                        .replace(SOOPConstants.F, "\\F"));
 
                 if (messageDispatcher == null) {
                     LOGGER.severe("MessageDispatcher is null!");

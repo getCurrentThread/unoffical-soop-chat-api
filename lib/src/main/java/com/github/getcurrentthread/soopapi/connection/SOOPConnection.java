@@ -1,5 +1,10 @@
 package com.github.getcurrentthread.soopapi.connection;
 
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import com.github.getcurrentthread.soopapi.client.IChatMessageObserver;
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
@@ -9,11 +14,6 @@ import com.github.getcurrentthread.soopapi.model.Message;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 import com.github.getcurrentthread.soopapi.websocket.WebSocketListener;
 import com.github.getcurrentthread.soopapi.websocket.WebSocketManager;
-
-import java.util.List;
-import java.util.concurrent.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class SOOPConnection {
     private static final Logger LOGGER = Logger.getLogger(SOOPConnection.class.getName());
@@ -26,46 +26,51 @@ public class SOOPConnection {
     private final WebSocketManager webSocketManager;
     private volatile boolean isConnected;
 
-    public SOOPConnection(SOOPChatConfig config,
-                          ExecutorService messageProcessor,
-                          ScheduledExecutorService scheduler) {
+    public SOOPConnection(
+            SOOPChatConfig config,
+            ExecutorService messageProcessor,
+            ScheduledExecutorService scheduler) {
         this.config = config;
         this.messageProcessor = messageProcessor;
         this.scheduler = scheduler;
         this.observers = new CopyOnWriteArrayList<>();
 
         // MessageDispatcher 초기화
-        this.messageDispatcher = new MessageDispatcher(
-                new DefaultMessageDecoderFactory().createDecoders(),
-                messageProcessor
-        );
+        this.messageDispatcher =
+                new MessageDispatcher(
+                        new DefaultMessageDecoderFactory().createDecoders(), messageProcessor);
 
         // 메시지 핸들러 설정
         this.messageDispatcher.setMessageHandler(this::notifyObservers);
 
         // WebSocketManager 초기화
         WebSocketListener listener = new WebSocketListener(messageDispatcher);
-        this.webSocketManager = new WebSocketManager(config, config.getSSLContext(), scheduler, listener);
+        this.webSocketManager =
+                new WebSocketManager(config, config.getSSLContext(), scheduler, listener);
     }
 
     public CompletableFuture<Void> connect() {
         // 가상 스레드로 연결 로직 실행
-        return CompletableFuture.runAsync(() -> {
-            try {
-                LOGGER.info("Fetching channel info for BID: " + config.getBid());
-                String bno = config.getBno() != null ? config.getBno() :
-                        SOOPChatUtils.getBnoFromBid(config.getBid());
+        return CompletableFuture.runAsync(
+                () -> {
+                    try {
+                        LOGGER.info("Fetching channel info for BID: " + config.getBid());
+                        String bno =
+                                config.getBno() != null
+                                        ? config.getBno()
+                                        : SOOPChatUtils.getBnoFromBid(config.getBid());
 
-                ChannelInfo channelInfo = SOOPChatUtils.getPlayerLive(bno, config.getBid());
-                LOGGER.info("Channel info received: " + channelInfo);
+                        ChannelInfo channelInfo = SOOPChatUtils.getPlayerLive(bno, config.getBid());
+                        LOGGER.info("Channel info received: " + channelInfo);
 
-                webSocketManager.connect(channelInfo).join();
-                isConnected = true;
-            } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Connection failed", e);
-                throw new CompletionException(e);
-            }
-        }, Executors.newVirtualThreadPerTaskExecutor()); // 가상 스레드로 실행
+                        webSocketManager.connect(channelInfo).join();
+                        isConnected = true;
+                    } catch (Exception e) {
+                        LOGGER.log(Level.SEVERE, "Connection failed", e);
+                        throw new CompletionException(e);
+                    }
+                },
+                Executors.newVirtualThreadPerTaskExecutor()); // 가상 스레드로 실행
     }
 
     private void notifyObservers(Message message) {
@@ -78,13 +83,15 @@ public class SOOPConnection {
 
         // 각 옵저버 알림을 가상 스레드에서 처리
         for (IChatMessageObserver observer : observers) {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    observer.notify(message);
-                } catch (Exception e) {
-                    LOGGER.log(Level.WARNING, "Error notifying observer", e);
-                }
-            }, messageProcessor);
+            CompletableFuture.runAsync(
+                    () -> {
+                        try {
+                            observer.notify(message);
+                        } catch (Exception e) {
+                            LOGGER.log(Level.WARNING, "Error notifying observer", e);
+                        }
+                    },
+                    messageProcessor);
         }
     }
 

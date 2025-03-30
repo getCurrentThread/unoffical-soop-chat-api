@@ -27,10 +27,6 @@ public class Message {
 
     @Override
     public String toString() {
-        return "Message{" +
-                "type=" + type +
-                ", data=" + data +
-                ", raw=" + _raw +
-                '}';
+        return "Message{" + "type=" + type + ", data=" + data + ", raw=" + _raw + '}';
     }
 }
