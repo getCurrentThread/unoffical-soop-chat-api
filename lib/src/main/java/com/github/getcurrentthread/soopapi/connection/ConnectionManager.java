@@ -9,9 +9,8 @@ import java.util.logging.Logger;
 
 public class ConnectionManager {
     private static final Logger LOGGER = Logger.getLogger(ConnectionManager.class.getName());
-    private static final int CORE_POOL_SIZE = Runtime.getRuntime().availableProcessors();
-    private static final int MAX_POOL_SIZE = CORE_POOL_SIZE * 2;
 
+    // 가상 스레드 기반 ExecutorService로 변경
     private final ExecutorService messageProcessorPool;
     private final ScheduledExecutorService sharedScheduler;
     private final Map<String, SOOPConnection> connections;
@@ -21,15 +20,13 @@ public class ConnectionManager {
     }
 
     private ConnectionManager() {
-        this.messageProcessorPool = new ThreadPoolExecutor(
-                CORE_POOL_SIZE,
-                MAX_POOL_SIZE,
-                60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(5000),
-                new ThreadPoolExecutor.CallerRunsPolicy()
-        );
+        // 가상 스레드를 사용하는 ExecutorService 생성
+        this.messageProcessorPool = Executors.newVirtualThreadPerTaskExecutor();
 
-        this.sharedScheduler = Executors.newScheduledThreadPool(2);
+        // 타이머 작업을 위한 스케줄러는 유지 (가상 스레드는 ScheduledExecutorService를 구현하지 않음)
+        this.sharedScheduler = Executors.newScheduledThreadPool(2,
+                Thread.ofVirtual().name("scheduler-", 0).factory());
+
         this.connections = new ConcurrentHashMap<>();
     }
 
@@ -40,6 +37,7 @@ public class ConnectionManager {
     public CompletableFuture<SOOPConnection> connect(SOOPChatConfig config, IChatMessageObserver observer) {
         String bid = config.getBid();
 
+        // 가상 스레드로 비동기 작업 실행
         return CompletableFuture.supplyAsync(() -> {
             SOOPConnection connection = connections.computeIfAbsent(bid,
                     k -> new SOOPConnection(config, messageProcessorPool, sharedScheduler));
@@ -47,7 +45,7 @@ public class ConnectionManager {
             connection.addObserver(observer);
             connection.connect().join();
             return connection;
-        });
+        }, messageProcessorPool);
     }
 
     public void disconnect(String bid) {
@@ -61,13 +59,11 @@ public class ConnectionManager {
         connections.values().forEach(SOOPConnection::disconnect);
         connections.clear();
 
-        messageProcessorPool.shutdown();
+        // 스레드 풀 정리
+        messageProcessorPool.close();
         sharedScheduler.shutdown();
 
         try {
-            if (!messageProcessorPool.awaitTermination(5, TimeUnit.SECONDS)) {
-                messageProcessorPool.shutdownNow();
-            }
             if (!sharedScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
                 sharedScheduler.shutdownNow();
             }

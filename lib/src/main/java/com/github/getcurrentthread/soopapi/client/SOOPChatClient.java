@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -47,12 +48,15 @@ public class SOOPChatClient implements AutoCloseable {
     }
     
     private void notifyObservers(Message message) {
+        // 가상 스레드를 사용하여 각 옵저버에게 메시지 통지
         for (IChatMessageObserver observer : observers) {
-            try {
-                observer.notify(message);
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error notifying observer", e);
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    observer.notify(message);
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Error notifying observer", e);
+                }
+            }, Executors.newVirtualThreadPerTaskExecutor());
         }
     }
     
@@ -61,6 +65,7 @@ public class SOOPChatClient implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
         
+        // 가상 스레드를 사용하여 연결 로직 수행
         return CompletableFuture.runAsync(() -> {
             try {
                 connectionManager.connect(config, this::notifyObservers)
@@ -73,7 +78,7 @@ public class SOOPChatClient implements AutoCloseable {
             } catch (Exception e) {
                 throw new CompletionException("Failed to connect to chat", e);
             }
-        });
+        }, Executors.newVirtualThreadPerTaskExecutor());
     }
     
     public void disconnect() {

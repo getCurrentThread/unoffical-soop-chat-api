@@ -49,6 +49,7 @@ public class SOOPConnection {
     }
 
     public CompletableFuture<Void> connect() {
+        // 가상 스레드로 연결 로직 실행
         return CompletableFuture.runAsync(() -> {
             try {
                 LOGGER.info("Fetching channel info for BID: " + config.getBid());
@@ -64,7 +65,7 @@ public class SOOPConnection {
                 LOGGER.log(Level.SEVERE, "Connection failed", e);
                 throw new CompletionException(e);
             }
-        }, scheduler);
+        }, Executors.newVirtualThreadPerTaskExecutor()); // 가상 스레드로 실행
     }
 
     private void notifyObservers(Message message) {
@@ -74,12 +75,16 @@ public class SOOPConnection {
         }
 
         LOGGER.info("Broadcasting message: " + message);
+
+        // 각 옵저버 알림을 가상 스레드에서 처리
         for (IChatMessageObserver observer : observers) {
-            try {
-                observer.notify(message);
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error notifying observer", e);
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    observer.notify(message);
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Error notifying observer", e);
+                }
+            }, messageProcessor);
         }
     }
 

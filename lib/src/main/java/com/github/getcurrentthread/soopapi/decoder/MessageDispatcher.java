@@ -6,7 +6,8 @@ import com.github.getcurrentthread.soopapi.model.Message;
 import com.github.getcurrentthread.soopapi.model.MessageType;
 
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -15,11 +16,11 @@ public class MessageDispatcher {
     private static final Logger LOGGER = Logger.getLogger(MessageDispatcher.class.getName());
     
     private final Map<MessageType, IMessageDecoder> messageDecoders;
-    private final ExecutorService messageProcessor;
+    private final Executor messageProcessor;
     private Consumer<Message> messageHandler;
-    
-    public MessageDispatcher(Map<MessageType, IMessageDecoder> messageDecoders, 
-                           ExecutorService messageProcessor) {
+
+    public MessageDispatcher(Map<MessageType, IMessageDecoder> messageDecoders,
+            Executor messageProcessor) {
         this.messageDecoders = messageDecoders;
         this.messageProcessor = messageProcessor;
     }
@@ -33,6 +34,7 @@ public class MessageDispatcher {
             return;
         }
         
+        // 가상 스레드에서 메시지 처리
         messageProcessor.execute(() -> {
             try {
                 Message decodedMessage = decodeMessage(message);

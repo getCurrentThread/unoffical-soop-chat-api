@@ -9,6 +9,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -22,7 +23,11 @@ public class SOOPChatUtils {
     }
 
     public static String getBnoFromBid(String bid) {
-        HttpClient client = HttpClient.newHttpClient();
+        // 가상 스레드를 사용하는 HTTP 클라이언트 생성
+        HttpClient client = HttpClient.newBuilder()
+                .executor(Executors.newVirtualThreadPerTaskExecutor())
+                .build();
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://play.sooplive.co.kr/" + bid))
                 .GET()
@@ -49,7 +54,11 @@ public class SOOPChatUtils {
         String url = "https://live.sooplive.co.kr/afreeca/player_live_api.php";
         String requestBody = String.format("bid=%s&bno=%s&type=live&confirm_adult=false&player_type=html5&mode=landing&from_api=0&pwd=&stream_type=common&quality=HD", bid, bno);
 
-        HttpClient client = HttpClient.newHttpClient();
+        // 가상 스레드를 사용하는 HTTP 클라이언트 생성
+        HttpClient client = HttpClient.newBuilder()
+                .executor(Executors.newVirtualThreadPerTaskExecutor())
+                .build();
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url + "?bjid=" + bid))
                 .header("User-Agent", USER_AGENT)
