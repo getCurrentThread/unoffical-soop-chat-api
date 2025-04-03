@@ -1,6 +1,5 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-
 import java.util.HashMap;
 import java.util.Map;
 
