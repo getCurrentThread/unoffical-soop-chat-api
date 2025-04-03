@@ -1,8 +1,5 @@
 package com.github.getcurrentthread.soopapi.util;
 
-import com.google.gson.*;
-import com.google.gson.reflect.TypeToken;
-
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,24 +7,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
+
 public class GsonUtil {
     private static final Gson gson = createCustomGson();
 
     private static Gson createCustomGson() {
         return new GsonBuilder()
-                .registerTypeAdapter(new TypeToken<Map<String, Object>>(){}.getType(), new MapDeserializer())
+                .registerTypeAdapter(
+                        new TypeToken<Map<String, Object>>() {}.getType(), new MapDeserializer())
                 .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
                 .create();
     }
 
     public static Map<String, Object> fromJson(String json) {
-        return gson.fromJson(json, new TypeToken<Map<String, Object>>(){}.getType());
+        return gson.fromJson(json, new TypeToken<Map<String, Object>>() {}.getType());
     }
 
     private static class MapDeserializer implements JsonDeserializer<Map<String, Object>> {
         @SuppressWarnings("unchecked")
         @Override
-        public Map<String, Object> deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+        public Map<String, Object> deserialize(
+                JsonElement json, Type typeOfT, JsonDeserializationContext context)
+                throws JsonParseException {
             return (Map<String, Object>) ParseObjectFromElement.INSTANCE.apply(json);
         }
     }
@@ -71,7 +74,8 @@ public class GsonUtil {
                 }
                 return map;
             }
-            throw new JsonParseException("Unexpected JSON type: " + input.getClass().getSimpleName());
+            throw new JsonParseException(
+                    "Unexpected JSON type: " + input.getClass().getSimpleName());
         }
     }
 }

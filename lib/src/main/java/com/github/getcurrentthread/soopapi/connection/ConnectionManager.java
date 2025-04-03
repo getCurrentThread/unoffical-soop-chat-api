@@ -1,11 +1,11 @@
 package com.github.getcurrentthread.soopapi.connection;
 
-import com.github.getcurrentthread.soopapi.client.IChatMessageObserver;
-import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
-
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.logging.Logger;
+
+import com.github.getcurrentthread.soopapi.client.IChatMessageObserver;
+import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 
 public class ConnectionManager {
     private static final Logger LOGGER = Logger.getLogger(ConnectionManager.class.getName());
@@ -21,13 +21,14 @@ public class ConnectionManager {
     }
 
     private ConnectionManager() {
-        this.messageProcessorPool = new ThreadPoolExecutor(
-                CORE_POOL_SIZE,
-                MAX_POOL_SIZE,
-                60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(5000),
-                new ThreadPoolExecutor.CallerRunsPolicy()
-        );
+        this.messageProcessorPool =
+                new ThreadPoolExecutor(
+                        CORE_POOL_SIZE,
+                        MAX_POOL_SIZE,
+                        60L,
+                        TimeUnit.SECONDS,
+                        new LinkedBlockingQueue<>(5000),
+                        new ThreadPoolExecutor.CallerRunsPolicy());
 
         this.sharedScheduler = Executors.newScheduledThreadPool(2);
         this.connections = new ConcurrentHashMap<>();
@@ -37,17 +38,23 @@ public class ConnectionManager {
         return InstanceHolder.INSTANCE;
     }
 
-    public CompletableFuture<SOOPConnection> connect(SOOPChatConfig config, IChatMessageObserver observer) {
+    public CompletableFuture<SOOPConnection> connect(
+            SOOPChatConfig config, IChatMessageObserver observer) {
         String bid = config.getBid();
 
-        return CompletableFuture.supplyAsync(() -> {
-            SOOPConnection connection = connections.computeIfAbsent(bid,
-                    k -> new SOOPConnection(config, messageProcessorPool, sharedScheduler));
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    SOOPConnection connection =
+                            connections.computeIfAbsent(
+                                    bid,
+                                    k ->
+                                            new SOOPConnection(
+                                                    config, messageProcessorPool, sharedScheduler));
 
-            connection.addObserver(observer);
-            connection.connect().join();
-            return connection;
-        });
+                    connection.addObserver(observer);
+                    connection.connect().join();
+                    return connection;
+                });
     }
 
     public void disconnect(String bid) {

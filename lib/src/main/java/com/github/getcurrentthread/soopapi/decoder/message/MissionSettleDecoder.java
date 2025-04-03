@@ -1,8 +1,8 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import com.github.getcurrentthread.soopapi.util.GsonUtil;
-
 import java.util.Map;
+
+import com.github.getcurrentthread.soopapi.util.GsonUtil;
 
 public class MissionSettleDecoder implements IMessageDecoder {
     @Override

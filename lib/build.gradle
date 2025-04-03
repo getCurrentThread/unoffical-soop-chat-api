@@ -8,6 +8,7 @@
 plugins {
     // Apply the java-library plugin for API and implementation separation.
     id 'java-library'
+    id 'com.diffplug.spotless' version '6.23.3' // Spotless 플러그인 (코드 포맷팅)
 }
 
 repositories {
@@ -29,6 +30,21 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
 }
 
+spotless {
+    java {
+        // Google Java format.
+        googleJavaFormat().aosp()
+        // import ordering
+        importOrder('java', 'javax', 'jakarta', 'org', 'com')
+        // remove unused imports
+        removeUnusedImports()
+        // trim trailing whitespace
+        trimTrailingWhitespace()
+        // end with newline
+        endWithNewline()
+    }
+}
+
 // Apply a specific Java toolchain to ease working on different environments.
 java {
     toolchain {
@@ -38,6 +54,7 @@ java {
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
+    dependsOn 'spotlessApply'
 }
 test {
     // 테스트 로그를 표준 출력으로 리다이렉트

@@ -11,7 +11,7 @@ public class SetNicknameDecoder implements IMessageDecoder {
         result.put("newNickname", parts[1]);
         result.put("changeType", Integer.parseInt(parts[2]));
         result.put("flag", parts[3]);
-        if(parts.length > 4) {
+        if (parts.length > 4) {
             result.put("oldNickname", parts[4]);
         }
         return result;

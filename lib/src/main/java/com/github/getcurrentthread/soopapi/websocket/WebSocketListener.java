@@ -1,13 +1,13 @@
 package com.github.getcurrentthread.soopapi.websocket;
 
-import com.github.getcurrentthread.soopapi.constant.SOOPConstants;
-import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
 
 public class WebSocketListener implements WebSocket.Listener {
     private static final Logger LOGGER = Logger.getLogger(WebSocketListener.class.getName());
