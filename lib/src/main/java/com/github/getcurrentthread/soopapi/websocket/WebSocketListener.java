@@ -13,7 +13,6 @@ public class WebSocketListener implements WebSocket.Listener {
     private static final Logger LOGGER = Logger.getLogger(WebSocketListener.class.getName());
     private final MessageDispatcher messageDispatcher;
     private ByteBuffer buffer = ByteBuffer.allocate(16384);
-    private static final boolean DEBUG = true;
 
     public WebSocketListener(MessageDispatcher messageDispatcher) {
         this.messageDispatcher = messageDispatcher;
@@ -23,15 +22,11 @@ public class WebSocketListener implements WebSocket.Listener {
     @Override
     public void onOpen(WebSocket webSocket) {
         LOGGER.info("WebSocket connection opened");
-        debugLog("WebSocket opened with protocol: " + webSocket.getSubprotocol());
         webSocket.request(1);
     }
 
     @Override
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-        debugLog("Received text message of length " + data.length() + ", last: " + last);
-        debugLog("Text content: " + data.toString());
-
         byte[] bytes = data.toString().getBytes(StandardCharsets.UTF_8);
         return onBinary(webSocket, ByteBuffer.wrap(bytes), last);
     }
@@ -39,11 +34,9 @@ public class WebSocketListener implements WebSocket.Listener {
     @Override
     public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
         try {
-            debugLog("Binary message received, size: " + data.remaining() + ", last: " + last);
 
             if (buffer.remaining() < data.remaining()) {
                 int newSize = buffer.capacity() + data.remaining();
-                debugLog("Buffer expansion needed. New size: " + newSize);
                 ByteBuffer newBuffer = ByteBuffer.allocate(newSize);
                 buffer.flip();
                 newBuffer.put(buffer);
@@ -55,7 +48,6 @@ public class WebSocketListener implements WebSocket.Listener {
             if (last) {
                 buffer.flip();
                 String message = StandardCharsets.UTF_8.decode(buffer).toString();
-                debugLog("Complete message ready for processing: " + message.replace(SOOPConstants.ESC, "\\ESC").replace(SOOPConstants.F, "\\F"));
 
                 if (messageDispatcher == null) {
                     LOGGER.severe("MessageDispatcher is null!");
@@ -64,8 +56,6 @@ public class WebSocketListener implements WebSocket.Listener {
                 }
 
                 buffer = ByteBuffer.allocate(16384);
-            } else {
-                debugLog("Partial message received, waiting for more data");
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error processing binary message", e);
@@ -78,14 +68,12 @@ public class WebSocketListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onPing(WebSocket webSocket, ByteBuffer message) {
-        debugLog("Ping received");
         webSocket.request(1);
         return null;
     }
 
     @Override
     public CompletionStage<?> onPong(WebSocket webSocket, ByteBuffer message) {
-        debugLog("Pong received");
         webSocket.request(1);
         return null;
     }
@@ -98,13 +86,6 @@ public class WebSocketListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        debugLog("WebSocket closed with status: " + statusCode + ", reason: " + reason);
         return null;
-    }
-
-    private void debugLog(String message) {
-        if (DEBUG) {
-            LOGGER.info("[DEBUG] " + message);
-        }
     }
 }
