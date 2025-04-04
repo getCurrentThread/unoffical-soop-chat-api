@@ -42,7 +42,7 @@ public class SOOPChatClientTest {
 
     @Test
     public void testSOOPChatClientConnection() throws Exception {
-        String testBID = "toree0409";
+        String testBID = "lshooooo";
         LOGGER.info("Starting test with BID: " + testBID);
 
         // 먼저 BNO와 채널 정보를 가져옵니다
