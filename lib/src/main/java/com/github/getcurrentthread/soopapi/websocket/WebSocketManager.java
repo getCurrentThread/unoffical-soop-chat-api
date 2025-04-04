@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -19,8 +20,9 @@ import com.github.getcurrentthread.soopapi.util.SSLContextProvider;
 public class WebSocketManager implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(WebSocketManager.class.getName());
     private static final long PING_INTERVAL_SECONDS = 60;
-    private static final int MAX_RETRY_ATTEMPTS = 3;
-    private static final long RETRY_DELAY_MS = 5000;
+    private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final long INITIAL_RETRY_DELAY_MS = 2000;
+    private static final long MAX_RETRY_DELAY_MS = 30000;
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
 
     private final SOOPChatConfig config;
@@ -29,8 +31,11 @@ public class WebSocketManager implements AutoCloseable {
     private final WebSocketListener listener;
     private final AtomicBoolean isConnected;
     private final AtomicInteger retryCount;
+    private final AtomicReference<ChannelInfo> currentChannelInfo = new AtomicReference<>();
+
     private volatile WebSocket webSocket;
     private volatile ScheduledFuture<?> pingTask;
+    private volatile CompletableFuture<Void> reconnectFuture;
 
     public WebSocketManager(
             SOOPChatConfig config,
@@ -47,7 +52,14 @@ public class WebSocketManager implements AutoCloseable {
         LOGGER.info("WebSocketManager initialized with SSL context: " + this.sslContext);
     }
 
+    /**
+     * 웹소켓에 연결합니다.
+     *
+     * @param channelInfo 연결할 채널 정보
+     * @return 연결 완료를 나타내는 CompletableFuture
+     */
     public CompletableFuture<Void> connect(ChannelInfo channelInfo) {
+        currentChannelInfo.set(channelInfo);
         String wsUrl =
                 String.format(
                         "wss://%s:%s/Websocket/%s",
@@ -64,10 +76,32 @@ public class WebSocketManager implements AutoCloseable {
                             .connectTimeout(CONNECT_TIMEOUT)
                             .build();
 
+            // 포트 확인 - 일부 서버는 문자열로 포트 번호를 반환할 수 있음
+            int portNumber;
+            try {
+                portNumber = Integer.parseInt(channelInfo.CHPT);
+            } catch (NumberFormatException e) {
+                LOGGER.warning(
+                        "Invalid port number format: " + channelInfo.CHPT + ", using default 8001");
+                portNumber = 8001;
+            }
+
+            // URI 생성 시 명시적으로 스키마, 호스트, 포트 지정
+            URI uri =
+                    new URI(
+                            "wss",
+                            null,
+                            channelInfo.CHDOMAIN,
+                            portNumber,
+                            "/Websocket/" + config.getBid(),
+                            null,
+                            null);
+            LOGGER.info("Connecting to URI: " + uri);
+
             client.newWebSocketBuilder()
                     .subprotocols("chat")
                     .connectTimeout(CONNECT_TIMEOUT)
-                    .buildAsync(URI.create(wsUrl), listener)
+                    .buildAsync(uri, listener)
                     .thenAccept(
                             ws -> {
                                 try {
@@ -102,8 +136,7 @@ public class WebSocketManager implements AutoCloseable {
                                         Level.SEVERE,
                                         "Failed to establish WebSocket connection",
                                         throwable);
-                                handleConnectionError(channelInfo, throwable);
-                                connectionFuture.completeExceptionally(throwable);
+                                handleConnectionError(channelInfo, throwable, connectionFuture);
                                 return null;
                             });
         } catch (Exception e) {
@@ -143,24 +176,74 @@ public class WebSocketManager implements AutoCloseable {
                 scheduler);
     }
 
-    private void handleConnectionError(ChannelInfo channelInfo, Throwable throwable) {
+    private void handleConnectionError(
+            ChannelInfo channelInfo,
+            Throwable throwable,
+            CompletableFuture<Void> connectionFuture) {
         LOGGER.log(Level.WARNING, "WebSocket connection error", throwable);
 
-        if (retryCount.incrementAndGet() <= MAX_RETRY_ATTEMPTS) {
-            LOGGER.info("Attempting retry " + retryCount.get() + " of " + MAX_RETRY_ATTEMPTS);
+        int currentRetry = retryCount.incrementAndGet();
+
+        if (currentRetry <= MAX_RETRY_ATTEMPTS) {
+            long delay = calculateExponentialBackoff(currentRetry);
+
+            LOGGER.info(
+                    "Attempting retry "
+                            + currentRetry
+                            + " of "
+                            + MAX_RETRY_ATTEMPTS
+                            + " in "
+                            + delay
+                            + "ms");
+
+            reconnectFuture = new CompletableFuture<>();
+
             scheduler.schedule(
                     () -> {
                         try {
-                            connect(channelInfo).join();
+                            connect(channelInfo)
+                                    .thenRun(
+                                            () -> {
+                                                if (reconnectFuture != null) {
+                                                    reconnectFuture.complete(null);
+                                                }
+                                                // 원래 연결 퓨처가 아직 완료되지 않았다면 완료시킵니다
+                                                if (!connectionFuture.isDone()) {
+                                                    connectionFuture.complete(null);
+                                                }
+                                            })
+                                    .exceptionally(
+                                            e -> {
+                                                LOGGER.log(Level.SEVERE, "Retry attempt failed", e);
+                                                // 원래 연결 퓨처가 아직 완료되지 않았다면 예외와 함께 완료시킵니다
+                                                if (!connectionFuture.isDone()
+                                                        && currentRetry == MAX_RETRY_ATTEMPTS) {
+                                                    connectionFuture.completeExceptionally(e);
+                                                }
+                                                return null;
+                                            });
                         } catch (Exception e) {
-                            LOGGER.log(Level.SEVERE, "Retry attempt failed", e);
+                            LOGGER.log(Level.SEVERE, "Error during reconnection", e);
+                            if (reconnectFuture != null) {
+                                reconnectFuture.completeExceptionally(e);
+                            }
                         }
                     },
-                    RETRY_DELAY_MS,
+                    delay,
                     TimeUnit.MILLISECONDS);
         } else {
             LOGGER.severe("Max retry attempts reached. Connection failed permanently.");
+            // 원래 연결 퓨처가 아직 완료되지 않았다면 예외와 함께 완료시킵니다
+            if (!connectionFuture.isDone()) {
+                connectionFuture.completeExceptionally(throwable);
+            }
         }
+    }
+
+    /** 지수 백오프를 사용하여 재시도 지연 시간을 계산합니다. */
+    private long calculateExponentialBackoff(int retryCount) {
+        long delay = INITIAL_RETRY_DELAY_MS * (long) Math.pow(2, retryCount - 1);
+        return Math.min(delay, MAX_RETRY_DELAY_MS);
     }
 
     private void startPingScheduler() {
@@ -178,6 +261,11 @@ public class WebSocketManager implements AutoCloseable {
                                     webSocket.sendText(pingPacket, true).join();
                                 } catch (Exception e) {
                                     LOGGER.log(Level.WARNING, "Error sending ping", e);
+                                    // 핑 전송 중 오류가 발생하면 연결이 끊어진 것일 수 있으므로 자동 재연결을 시도합니다
+                                    if (isConnected.get()) {
+                                        LOGGER.info("Ping failed, attempting to reconnect");
+                                        reconnect();
+                                    }
                                 }
                             }
                         },
@@ -186,6 +274,26 @@ public class WebSocketManager implements AutoCloseable {
                         TimeUnit.SECONDS);
     }
 
+    /**
+     * 현재 채널 정보를 사용하여 연결을 재시도합니다.
+     *
+     * @return 재연결 완료를 나타내는 CompletableFuture
+     */
+    public CompletableFuture<Void> reconnect() {
+        ChannelInfo channelInfo = currentChannelInfo.get();
+        if (channelInfo == null) {
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            future.completeExceptionally(
+                    new IllegalStateException(
+                            "No previous channel info available for reconnection"));
+            return future;
+        }
+
+        cleanupResources();
+        return connect(channelInfo);
+    }
+
+    /** 연결을 해제합니다. */
     public void disconnect() {
         if (webSocket != null) {
             try {
@@ -209,6 +317,46 @@ public class WebSocketManager implements AutoCloseable {
         }
     }
 
+    /**
+     * 현재 WebSocket 연결 상태를 반환합니다.
+     *
+     * @return 연결 상태
+     */
+    public CompletableFuture<WebSocketStatus> getStatus() {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    if (!isConnected()) {
+                        return new WebSocketStatus(false, retryCount.get(), MAX_RETRY_ATTEMPTS);
+                    }
+                    return new WebSocketStatus(true, 0, MAX_RETRY_ATTEMPTS);
+                });
+    }
+
+    /** 웹소켓 상태 정보를 포함하는 클래스 */
+    public static class WebSocketStatus {
+        private final boolean connected;
+        private final int retryCount;
+        private final int maxRetries;
+
+        public WebSocketStatus(boolean connected, int retryCount, int maxRetries) {
+            this.connected = connected;
+            this.retryCount = retryCount;
+            this.maxRetries = maxRetries;
+        }
+
+        public boolean isConnected() {
+            return connected;
+        }
+
+        public int getRetryCount() {
+            return retryCount;
+        }
+
+        public int getMaxRetries() {
+            return maxRetries;
+        }
+    }
+
     @Override
     public void close() {
         disconnect();
@@ -216,5 +364,10 @@ public class WebSocketManager implements AutoCloseable {
 
     public boolean isConnected() {
         return isConnected.get() && webSocket != null;
+    }
+
+    /** 재연결 Future를 가져옵니다. 현재 재연결이 진행 중이 아니면 null을 반환합니다. */
+    public CompletableFuture<Void> getReconnectFuture() {
+        return reconnectFuture;
     }
 }
