@@ -1,8 +1,8 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 
 @FunctionalInterface
 public interface IMessageDecoder {
-    Map<String, Object> decode(String[] parts);
+    BaseEvent decode(String[] parts, String raw);
 }
