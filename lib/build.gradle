@@ -8,7 +8,7 @@
 plugins {
     // Apply the java-library plugin for API and implementation separation.
     id 'java-library'
-    id 'com.diffplug.spotless' version '6.23.3' // Spotless 플러그인 (코드 포맷팅)
+    id 'com.diffplug.spotless' version '8.2.1' // Spotless 플러그인 (코드 포맷팅)
 }
 
 repositories {
@@ -48,7 +48,7 @@ spotless {
 // Apply a specific Java toolchain to ease working on different environments.
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
