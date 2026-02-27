@@ -3,6 +3,5 @@ package com.github.getcurrentthread.soopapi.event.model;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
 public record SlowModeEvent(
-    int autotime, int manualtime,
-    ChatEvent eventType, String raw, long timestamp
-) implements BaseEvent {}
+        int autotime, int manualtime, ChatEvent eventType, String raw, long timestamp)
+        implements BaseEvent {}

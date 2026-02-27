@@ -3,6 +3,10 @@ package com.github.getcurrentthread.soopapi.event.model;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
 public record GemItemSendEvent(
-    String receiverId, String receiverNick, String itemName,
-    ChatEvent eventType, String raw, long timestamp
-) implements BaseEvent {}
+        String receiverId,
+        String receiverNick,
+        String itemName,
+        ChatEvent eventType,
+        String raw,
+        long timestamp)
+        implements BaseEvent {}

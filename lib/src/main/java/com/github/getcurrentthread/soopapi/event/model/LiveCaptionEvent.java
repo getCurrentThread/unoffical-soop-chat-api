@@ -2,7 +2,5 @@ package com.github.getcurrentthread.soopapi.event.model;
 
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
-public record LiveCaptionEvent(
-    String caption,
-    ChatEvent eventType, String raw, long timestamp
-) implements BaseEvent {}
+public record LiveCaptionEvent(String caption, ChatEvent eventType, String raw, long timestamp)
+        implements BaseEvent {}

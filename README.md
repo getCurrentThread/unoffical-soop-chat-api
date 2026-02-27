@@ -4,10 +4,11 @@
 
 ## 주요 기능
 
-- WebSocket을 사용하여 SOOP 채팅방에 연결
-- 다양한 메시지 유형(채팅 메시지, 풍선, 이모티콘 등) 디코딩 및 처리
-- 채팅 이벤트 처리를 위한 사용하기 쉬운 옵저버 패턴
-- 연결 유지를 위한 자동 재연결 및 핑 메커니즘
+- **이벤트 기반 아키텍처**: 타입 안전한 `on(event, handler)` 패턴으로 이벤트 구독
+- **83개 이벤트 타입 지원**: 채팅 메시지, 풍선, 이모티콘, 구독 등 모든 이벤트를 Java Record로 디코딩
+- **통합 API 클라이언트**: `SoopClient` 파사드로 인증, 방송 정보, 채널 정보, 채팅을 통합 관리
+- **채팅 전송 지원**: `sendChat()` 메서드로 채팅 메시지 전송
+- WebSocket 기반 자동 재연결 및 핑 메커니즘
 
 ## 필요 조건
 
@@ -15,8 +16,6 @@
 - Gradle 8.10.1 이상
 
 ## 설치
-
-이 라이브러리는 아직 Maven Central에서 사용할 수 없습니다. 프로젝트에서 사용하려면 이 저장소를 복제하고 로컬 종속성으로 포함시킬 수 있습니다.
 
 1. 저장소 복제:
 
@@ -35,74 +34,121 @@
 
 ## 사용 방법
 
-SOOP 채팅 API를 사용하는 기본 예제입니다:
+### 통합 클라이언트 (SoopClient)
 
 ```java
+import com.github.getcurrentthread.soopapi.SoopClient;
+import com.github.getcurrentthread.soopapi.api.model.*;
 import com.github.getcurrentthread.soopapi.client.SOOPChatClient;
-import com.github.getcurrentthread.soopapi.client.IChatMessageObserver;
-import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
-import com.github.getcurrentthread.soopapi.model.Message;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.*;
 
 public class Example {
-   public static void main(String[] args) throws Exception {
-      SOOPChatConfig config = new SOOPChatConfig.Builder()
-              .bid("방송인ID")
-              .build();
+    public static void main(String[] args) throws Exception {
+        SoopClient client = new SoopClient();
 
-      SOOPChatClient client = new SOOPChatClient(config);
+        // 방송 정보 조회
+        LiveDetail detail = client.live.detail("streamerId").join();
+        System.out.println("방송 제목: " + detail.title());
 
-      client.addObserver(new IChatMessageObserver() {
-         @Override
-         public void notify(Message message) {
-            System.out.println("수신된 메시지: " + message);
-         }
-      });
+        // 채널 정보 조회
+        StationInfo station = client.channel.station("streamerId").join();
+        System.out.println("스테이션: " + station.stationName());
 
-      client.connectToChat().join();
+        // 채팅 연결 (이벤트 기반)
+        SOOPChatClient chat = client.chat("streamerId");
 
-      // 프로그램 실행 유지
-      Thread.sleep(Long.MAX_VALUE);
-   }
+        chat.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
+            System.out.println(e.senderNickname() + ": " + e.message());
+        });
+
+        chat.on(ChatEvent.SEND_BALLOON, (SendBalloonEvent e) -> {
+            System.out.println(e.senderNickname() + "님이 풍선 " + e.count() + "개 선물!");
+        });
+
+        chat.on(ChatEvent.SEND_SUBSCRIPTION, (SendSubscriptionEvent e) -> {
+            System.out.println("구독 이벤트: " + e);
+        });
+
+        chat.connectToChat().join();
+
+        // 채팅 전송
+        chat.sendChat("Hello!");
+
+        // 프로그램 실행 유지
+        Thread.sleep(Long.MAX_VALUE);
+    }
 }
 ```
 
-## 메시지 유형
+### 직접 연결
 
-이 라이브러리는 다음을 포함한 다양한 메시지 유형의 디코딩을 지원합니다:
+```java
+import com.github.getcurrentthread.soopapi.client.SOOPChatClient;
+import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.ChatMessageEvent;
 
-- 채팅 메시지 (CHAT_MESSAGE)
-- 풍선 (SEND_BALLOON, SEND_BALLOON_SUB)
-- OGQ 이모티콘 (OGQ_EMOTICON, OGQ_EMOTICON_GIFT)
-- 매니저 채팅 메시지 (MANAGER_CHAT)
-- 초콜릿 (CHOCOLATE, CHOCOLATE_SUB)
-- 퀵뷰 (SEND_QUICK_VIEW)
-- 선물 티켓 (GIFT_TICKET)
-- 애드콘 효과 (ADCON_EFFECT)
-- 비디오 풍선 (VIDEO_BALLOON)
-- 구독 (SEND_SUBSCRIPTION)
-- 아이템 드롭 (ITEM_DROPS)
-- 젬 아이템 (GEM_ITEM_SEND)
-- 실시간 자막 (LIVE_CAPTION)
-- 채널 입장/퇴장 (JOIN_CHANNEL, QUIT_CHANNEL)
-- 유저 플래그 설정 (SET_USER_FLAG)
-- 매니저 설정 (SET_SUB_BJ)
-- 닉네임 변경 (SET_NICKNAME)
-- 얼음방 모드 (ICE_MODE, ICE_MODE_EX)
-- 팬레터 (SEND_FAN_LETTER, SEND_FAN_LETTER_SUB)
-- 미션 관련 (MISSION, MISSION_SETTLE)
-- 번역 관련 (TRANSLATION, TRANSLATION_STATE)
-- 채팅 금지 (SET_DUMB)
-- 그 외 다양한 시스템 메시지
+public class DirectExample {
+    public static void main(String[] args) throws Exception {
+        SOOPChatConfig config = new SOOPChatConfig.Builder()
+                .bid("streamerId")
+                .build();
+
+        SOOPChatClient client = new SOOPChatClient(config);
+
+        client.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
+            System.out.println(e.senderNickname() + ": " + e.message());
+        });
+
+        client.connectToChat().join();
+
+        Thread.sleep(Long.MAX_VALUE);
+    }
+}
+```
+
+### 인증 (선택사항)
+
+```java
+SoopClient client = new SoopClient();
+
+AuthCookie cookie = client.auth.signIn("userId", "password").join();
+if (cookie.success()) {
+    System.out.println("로그인 성공");
+}
+```
+
+## 이벤트 타입
+
+`ChatEvent` 열거형으로 모든 이벤트를 구독할 수 있습니다. 각 이벤트는 타입 안전한 Java Record로 디코딩됩니다.
+
+| 이벤트 | 코드 | Record 타입 |
+|--------|------|-------------|
+| `CHAT_MESSAGE` | 5 | `ChatMessageEvent` |
+| `SEND_BALLOON` | 18 | `SendBalloonEvent` |
+| `OGQ_EMOTICON` | 109 | `OGQEmoticonEvent` |
+| `SEND_SUBSCRIPTION` | 108 | `SendSubscriptionEvent` |
+| `JOIN_CHANNEL` | 2 | `JoinChannelEvent` |
+| `QUIT_CHANNEL` | 3 | `QuitChannelEvent` |
+| `KICK` | 11 | `KickEvent` |
+| `NOTICE` | 10 | `NoticeEvent` |
+| `CHOCOLATE` | 37 | `ChocolateEvent` |
+| `VIDEO_BALLOON` | 105 | `VideoBalloonEvent` |
+| `LIVE_CAPTION` | 122 | `LiveCaptionEvent` |
+| `MISSION` | 121 | `MissionEvent` |
+
+...그 외 83개 이벤트 타입 지원. 전체 목록은 `ChatEvent.java`를 참조하세요.
 
 ## 기여하기
 
 기여는 언제나 환영합니다! Pull Request를 제출해 주세요.
 
-이 프로젝트가 도움이 되셨다면, 별(⭐️)을 눌러주세요. 감사합니다!
+이 프로젝트가 도움이 되셨다면, 별을 눌러주세요. 감사합니다!
 
 ## 라이선스
 
-이 프로젝트는 Apache License 2.0 하에 라이선스가 부여됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
+이 프로젝트는 MIT License 하에 라이선스가 부여됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 면책 조항
 

@@ -39,8 +39,7 @@ public class EventEmitter {
         return this;
     }
 
-    public <T extends BaseEvent> EventEmitter off(
-            ChatEvent event, EventListener<T> listener) {
+    public <T extends BaseEvent> EventEmitter off(ChatEvent event, EventListener<T> listener) {
         List<EventListener<? extends BaseEvent>> list = listeners.get(event);
         if (list != null) {
             list.remove(listener);
