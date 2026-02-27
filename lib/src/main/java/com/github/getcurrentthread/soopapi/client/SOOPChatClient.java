@@ -1,17 +1,18 @@
 package com.github.getcurrentthread.soopapi.client;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.connection.ConnectionManager;
 import com.github.getcurrentthread.soopapi.connection.SOOPConnection;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.EventEmitter;
+import com.github.getcurrentthread.soopapi.event.EventListener;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.exception.ConnectionException;
-import com.github.getcurrentthread.soopapi.model.Message;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class SOOPChatClient implements AutoCloseable {
@@ -19,14 +20,14 @@ public class SOOPChatClient implements AutoCloseable {
 
     private final SOOPChatConfig config;
     private final ConnectionManager connectionManager;
-    private final List<IChatMessageObserver> observers;
+    private final EventEmitter eventEmitter;
     private volatile boolean isConnected;
     private volatile SOOPConnection connection;
 
     public SOOPChatClient(SOOPChatConfig config) {
         this.config = validateConfig(config);
         this.connectionManager = ConnectionManager.getInstance();
-        this.observers = new CopyOnWriteArrayList<>();
+        this.eventEmitter = new EventEmitter();
     }
 
     private SOOPChatConfig validateConfig(SOOPChatConfig config) {
@@ -41,29 +42,21 @@ public class SOOPChatClient implements AutoCloseable {
         return config;
     }
 
-    public void addObserver(IChatMessageObserver observer) {
-        observers.add(observer);
+    public <T extends BaseEvent> SOOPChatClient on(ChatEvent event, EventListener<T> listener) {
+        eventEmitter.on(event, listener);
+        return this;
     }
 
-    public void removeObserver(IChatMessageObserver observer) {
-        observers.remove(observer);
+    public <T extends BaseEvent> SOOPChatClient once(ChatEvent event, EventListener<T> listener) {
+        eventEmitter.once(event, listener);
+        return this;
     }
 
-    private void notifyObservers(Message message) {
-        for (IChatMessageObserver observer : observers) {
-            try {
-                observer.notify(message);
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error notifying observer", e);
-            }
-        }
+    public <T extends BaseEvent> SOOPChatClient off(ChatEvent event, EventListener<T> listener) {
+        eventEmitter.off(event, listener);
+        return this;
     }
 
-    /**
-     * 채팅에 비동기적으로 연결합니다.
-     *
-     * @return 연결 작업을 나타내는 CompletableFuture
-     */
     public CompletableFuture<Void> connectToChat() {
         if (isConnected) {
             return CompletableFuture.completedFuture(null);
@@ -72,8 +65,7 @@ public class SOOPChatClient implements AutoCloseable {
         return CompletableFuture.runAsync(
                 () -> {
                     try {
-                        connection =
-                                connectionManager.connect(config, this::notifyObservers).join();
+                        connection = connectionManager.connect(config, eventEmitter).join();
                         isConnected = true;
                     } catch (Exception e) {
                         LOGGER.log(Level.SEVERE, "채팅 연결 실패", e);
@@ -86,11 +78,6 @@ public class SOOPChatClient implements AutoCloseable {
                 });
     }
 
-    /**
-     * 채팅 연결을 시도하고 완료될 때까지 현재 스레드를 차단합니다.
-     *
-     * @throws ConnectionException 연결 오류가 발생한 경우
-     */
     public void connectToChattingBlocking() throws ConnectionException {
         try {
             connectToChat().join();
@@ -103,11 +90,14 @@ public class SOOPChatClient implements AutoCloseable {
         }
     }
 
-    /**
-     * 연결이 끊어진 경우 재연결을 시도합니다.
-     *
-     * @return 재연결 작업을 나타내는 CompletableFuture
-     */
+    public CompletableFuture<Void> sendChat(String message) {
+        if (connection == null || !isConnected) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("연결이 되어 있지 않습니다. 먼저 connectToChat을 호출하세요."));
+        }
+        return connection.sendChat(message);
+    }
+
     public CompletableFuture<Void> reconnect() {
         if (connection == null) {
             return CompletableFuture.failedFuture(
@@ -125,11 +115,6 @@ public class SOOPChatClient implements AutoCloseable {
                         });
     }
 
-    /**
-     * 현재 연결 상태를 확인합니다.
-     *
-     * @return 연결 상태 정보를 포함하는 CompletableFuture
-     */
     public CompletableFuture<ConnectionStatus> getConnectionStatus() {
         if (connection == null) {
             return CompletableFuture.completedFuture(new ConnectionStatus(false, false, 0));
@@ -145,7 +130,6 @@ public class SOOPChatClient implements AutoCloseable {
                                         status.getRetryCount()));
     }
 
-    /** 현재 연결을 해제합니다. */
     public void disconnect() {
         if (!isConnected) {
             return;
@@ -155,6 +139,7 @@ public class SOOPChatClient implements AutoCloseable {
             connectionManager.disconnect(config.getBid()).join();
             isConnected = false;
             connection = null;
+            eventEmitter.clear();
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error during disconnect", e);
         }
@@ -165,25 +150,18 @@ public class SOOPChatClient implements AutoCloseable {
         disconnect();
     }
 
-    /**
-     * 현재 연결 상태를 반환합니다.
-     *
-     * @return 연결 상태
-     */
     public boolean isConnected() {
         return isConnected && (connection != null && connection.isConnected());
     }
 
-    /**
-     * 방송인 ID를 반환합니다.
-     *
-     * @return 방송인 ID
-     */
     public String getBid() {
         return config.getBid();
     }
 
-    /** 연결 상태 정보를 제공하는 클래스 */
+    public EventEmitter getEventEmitter() {
+        return eventEmitter;
+    }
+
     public static class ConnectionStatus {
         private final boolean connected;
         private final boolean reconnecting;

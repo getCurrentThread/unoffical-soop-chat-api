@@ -2,30 +2,30 @@ package com.github.getcurrentthread.soopapi.decoder;
 
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.getcurrentthread.soopapi.constant.SOOPConstants;
 import com.github.getcurrentthread.soopapi.decoder.message.IMessageDecoder;
-import com.github.getcurrentthread.soopapi.model.Message;
-import com.github.getcurrentthread.soopapi.model.MessageType;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.EventEmitter;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.UnknownEvent;
 
 public class MessageDispatcher {
     private static final Logger LOGGER = Logger.getLogger(MessageDispatcher.class.getName());
 
-    private final Map<MessageType, IMessageDecoder> messageDecoders;
+    private final Map<ChatEvent, IMessageDecoder> messageDecoders;
     private final ExecutorService messageProcessor;
-    private Consumer<Message> messageHandler;
+    private final EventEmitter eventEmitter;
 
     public MessageDispatcher(
-            Map<MessageType, IMessageDecoder> messageDecoders, ExecutorService messageProcessor) {
+            Map<ChatEvent, IMessageDecoder> messageDecoders,
+            ExecutorService messageProcessor,
+            EventEmitter eventEmitter) {
         this.messageDecoders = messageDecoders;
         this.messageProcessor = messageProcessor;
-    }
-
-    public void setMessageHandler(Consumer<Message> messageHandler) {
-        this.messageHandler = messageHandler;
+        this.eventEmitter = eventEmitter;
     }
 
     public void dispatchMessage(String message) {
@@ -36,41 +36,38 @@ public class MessageDispatcher {
         messageProcessor.execute(
                 () -> {
                     try {
-                        Message decodedMessage = decodeMessage(message);
-                        if (decodedMessage != null && messageHandler != null) {
-                            messageHandler.accept(decodedMessage);
+                        String[] parts = message.split(SOOPConstants.F);
+                        if (parts.length < 2) {
+                            return;
+                        }
+
+                        int serviceCode = parseServiceCode(parts[0]);
+                        ChatEvent chatEvent = ChatEvent.fromCode(serviceCode);
+                        IMessageDecoder decoder = messageDecoders.get(chatEvent);
+
+                        String[] messageParts = new String[parts.length - 1];
+                        System.arraycopy(parts, 1, messageParts, 0, parts.length - 1);
+
+                        BaseEvent event;
+                        if (decoder != null) {
+                            event = decoder.decode(messageParts, message);
+                        } else {
+                            event =
+                                    new UnknownEvent(
+                                            serviceCode,
+                                            message,
+                                            ChatEvent.NONE_TYPE,
+                                            message,
+                                            System.currentTimeMillis());
+                        }
+
+                        if (event != null) {
+                            eventEmitter.emit(chatEvent, event);
                         }
                     } catch (Exception e) {
                         LOGGER.log(Level.WARNING, "Error processing message: " + message, e);
                     }
                 });
-    }
-
-    private Message decodeMessage(String message) {
-        String[] parts = message.split(SOOPConstants.F);
-        if (parts.length < 2) {
-            return null;
-        }
-
-        try {
-            int serviceCode = parseServiceCode(parts[0]);
-            MessageType messageType = MessageType.fromCode(serviceCode);
-            IMessageDecoder decoder = messageDecoders.get(messageType);
-
-            if (decoder == null) {
-                return new Message(messageType, null, message);
-            }
-
-            String[] messageParts = new String[parts.length - 1];
-            System.arraycopy(parts, 1, messageParts, 0, parts.length - 1);
-
-            Map<String, Object> decodedData = decoder.decode(messageParts);
-            return new Message(messageType, decodedData, message);
-
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error decoding message", e);
-            return null;
-        }
     }
 
     private int parseServiceCode(String header) {

@@ -366,6 +366,15 @@ public class WebSocketManager implements AutoCloseable {
         return isConnected.get() && webSocket != null;
     }
 
+    public CompletableFuture<Void> sendChat(String message) {
+        if (!isConnected() || webSocket == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("WebSocket is not connected"));
+        }
+        String packet = WebSocketPacketBuilder.createChatPacket(message);
+        return webSocket.sendText(packet, true).thenRun(() -> {});
+    }
+
     /** 재연결 Future를 가져옵니다. 현재 재연결이 진행 중이 아니면 null을 반환합니다. */
     public CompletableFuture<Void> getReconnectFuture() {
         return reconnectFuture;

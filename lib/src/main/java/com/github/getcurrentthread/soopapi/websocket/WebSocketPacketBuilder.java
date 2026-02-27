@@ -28,6 +28,13 @@ public class WebSocketPacketBuilder {
         return String.format("%s%s%06d00%s", SOOPConstants.ESC, command, data.length(), data);
     }
 
+    // 채팅 메시지 전송을 위한 패킷 생성
+    public static String createChatPacket(String message) {
+        return buildPacket(
+                "0005",
+                String.format("%s%s%s", SOOPConstants.F, message, SOOPConstants.F.repeat(6)));
+    }
+
     // 패킷 길이 계산을 위한 유틸리티 메서드
     public static int calculateByteSize(String data) {
         return data.getBytes().length + 6;
