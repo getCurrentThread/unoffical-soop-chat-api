@@ -1,11 +1,12 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.KeepAliveEvent;
 
 public class KeepAliveDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        return new HashMap<>();
+    public BaseEvent decode(String[] parts, String raw) {
+        return new KeepAliveEvent(ChatEvent.KEEP_ALIVE, raw, System.currentTimeMillis());
     }
 }

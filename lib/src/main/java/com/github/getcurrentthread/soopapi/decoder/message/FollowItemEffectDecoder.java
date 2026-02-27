@@ -1,17 +1,20 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.FollowItemEffectEvent;
 
 public class FollowItemEffectDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("bjId", parts[0]);
-        result.put("sendId", parts[1]);
-        result.put("sendNick", parts[2]);
-        result.put("month", Integer.parseInt(parts[3]));
-        result.put("chatNo", Integer.parseInt(parts[4]));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new FollowItemEffectEvent(
+                parts[0],
+                parts[1],
+                parts[2],
+                Integer.parseInt(parts[3]),
+                Integer.parseInt(parts[4]),
+                ChatEvent.FOLLOW_ITEM_EFFECT,
+                raw,
+                System.currentTimeMillis());
     }
 }

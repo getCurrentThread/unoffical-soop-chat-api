@@ -1,20 +1,23 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.SendBalloonSubEvent;
 
 public class SendBalloonSubDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("bjId", parts[1]);
-        result.put("senderId", parts[3]);
-        result.put("senderNickname", parts[4]);
-        result.put("count", Integer.parseInt(parts[5]));
-        result.put("fanOrder", Integer.parseInt(parts[6]));
-        result.put("fileName", parts[8]);
-        result.put("isDefault", "1".equals(parts[9]));
-        result.put("isTopFan", Integer.parseInt(parts[10]));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new SendBalloonSubEvent(
+                parts[1],
+                parts[3],
+                parts[4],
+                Integer.parseInt(parts[5]),
+                Integer.parseInt(parts[6]),
+                parts[8],
+                "1".equals(parts[9]),
+                Integer.parseInt(parts[10]),
+                ChatEvent.SEND_BALLOON_SUB,
+                raw,
+                System.currentTimeMillis());
     }
 }

@@ -1,21 +1,35 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.StationAdconEvent;
 
 public class StationAdconDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
+    public BaseEvent decode(String[] parts, String raw) {
         if (parts.length >= 7) {
-            result.put("bjId", parts[0]);
-            result.put("userId", parts[1]);
-            result.put("userNickName", parts[2]);
-            result.put("adconCount", Integer.parseInt(parts[3]));
-            result.put("isDefault", parts[4]);
-            result.put("adconMsg", parts[5]);
-            result.put("chatNumber", parts[6]);
+            return new StationAdconEvent(
+                    parts[0],
+                    parts[1],
+                    parts[2],
+                    Integer.parseInt(parts[3]),
+                    parts[4],
+                    parts[5],
+                    parts[6],
+                    ChatEvent.STATION_ADCON,
+                    raw,
+                    System.currentTimeMillis());
         }
-        return result;
+        return new StationAdconEvent(
+                "",
+                "",
+                "",
+                0,
+                "",
+                "",
+                "",
+                ChatEvent.STATION_ADCON,
+                raw,
+                System.currentTimeMillis());
     }
 }

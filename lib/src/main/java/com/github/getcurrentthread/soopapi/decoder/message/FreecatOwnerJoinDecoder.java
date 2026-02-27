@@ -1,17 +1,20 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.FreecatOwnerJoinEvent;
 
 public class FreecatOwnerJoinDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("chatNo", parts[0]);
-        result.put("bjId", parts[1]);
-        result.put("maxSubBjCount", Integer.parseInt(parts[3]));
-        result.put("familyNickname", parts[4]);
-        result.put("userFlag", parts[6]);
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new FreecatOwnerJoinEvent(
+                parts[0],
+                parts[1],
+                Integer.parseInt(parts[3]),
+                parts[4],
+                parts[6],
+                ChatEvent.FREECAT_OWNER_JOIN,
+                raw,
+                System.currentTimeMillis());
     }
 }

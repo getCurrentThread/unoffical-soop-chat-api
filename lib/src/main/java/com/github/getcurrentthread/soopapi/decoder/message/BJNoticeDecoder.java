@@ -1,14 +1,17 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.BjNoticeEvent;
 
 public class BJNoticeDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("show", Integer.parseInt(parts[1]));
-        result.put("message", parts[3]);
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new BjNoticeEvent(
+                Integer.parseInt(parts[1]),
+                parts[3],
+                ChatEvent.BJ_NOTICE,
+                raw,
+                System.currentTimeMillis());
     }
 }

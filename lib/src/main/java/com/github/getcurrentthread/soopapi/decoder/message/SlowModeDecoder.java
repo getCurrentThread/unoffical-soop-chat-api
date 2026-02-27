@@ -1,14 +1,17 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.SlowModeEvent;
 
 public class SlowModeDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("autotime", Integer.parseInt(parts[0]));
-        result.put("manualtime", Integer.parseInt(parts[1]));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new SlowModeEvent(
+                Integer.parseInt(parts[0]),
+                Integer.parseInt(parts[1]),
+                ChatEvent.SLOW_MODE,
+                raw,
+                System.currentTimeMillis());
     }
 }

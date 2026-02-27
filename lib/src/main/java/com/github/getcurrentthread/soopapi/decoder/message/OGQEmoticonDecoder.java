@@ -1,26 +1,34 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.OGQEmoticonEvent;
 
 public class OGQEmoticonDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        if (parts.length >= 6) {
-            result.put("chatNo", parts[0]);
-            result.put("message", parts[1]);
-            result.put("groupId", parts[2]);
-            result.put("subId", parts[3]);
-            result.put("version", parts[4]);
-            result.put("userInfo", parts[5]);
-        }
-        // 추가 정보가 있다면 처리
-        if (parts.length >= 9) {
-            result.put("color", parts[6]);
-            result.put("chatLang", parts[7]);
-            result.put("type", parts[8]);
-        }
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        String chatNo = parts.length >= 6 ? parts[0] : "";
+        String message = parts.length >= 6 ? parts[1] : "";
+        String groupId = parts.length >= 6 ? parts[2] : "";
+        String subId = parts.length >= 6 ? parts[3] : "";
+        String version = parts.length >= 6 ? parts[4] : "";
+        String userInfo = parts.length >= 6 ? parts[5] : "";
+        String color = parts.length >= 9 ? parts[6] : "";
+        String chatLang = parts.length >= 9 ? parts[7] : "";
+        String type = parts.length >= 9 ? parts[8] : "";
+
+        return new OGQEmoticonEvent(
+                chatNo,
+                message,
+                groupId,
+                subId,
+                version,
+                userInfo,
+                color,
+                chatLang,
+                type,
+                ChatEvent.OGQ_EMOTICON,
+                raw,
+                System.currentTimeMillis());
     }
 }

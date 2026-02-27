@@ -1,15 +1,18 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.BlindKickEvent;
 
 public class BlindKickDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("userId", parts[0]);
-        result.put("userNickname", parts[1]);
-        result.put("blindTime", Integer.parseInt(parts[2]));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new BlindKickEvent(
+                parts[0],
+                parts[1],
+                Integer.parseInt(parts[2]),
+                ChatEvent.BLIND_KICK,
+                raw,
+                System.currentTimeMillis());
     }
 }

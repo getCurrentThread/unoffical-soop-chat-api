@@ -1,19 +1,22 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.ManagerChatEvent;
 
 public class ManagerChatDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("message", parts[0]);
-        result.put("senderId", parts[1]);
-        result.put("isAdmin", Integer.parseInt(parts[2]));
-        result.put("chatLang", Integer.parseInt(parts[3]));
-        result.put("senderNickname", parts[4]);
-        result.put("senderFlag", parts[5]);
-        result.put("subscriptionMonth", parts[6]);
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new ManagerChatEvent(
+                parts[0],
+                parts[1],
+                Integer.parseInt(parts[2]),
+                Integer.parseInt(parts[3]),
+                parts[4],
+                parts[5],
+                parts[6],
+                ChatEvent.MANAGER_CHAT,
+                raw,
+                System.currentTimeMillis());
     }
 }

@@ -1,19 +1,20 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.SetNicknameEvent;
 
 public class SetNicknameDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("userId", parts[0]);
-        result.put("newNickname", parts[1]);
-        result.put("changeType", Integer.parseInt(parts[2]));
-        result.put("flag", parts[3]);
-        if (parts.length > 4) {
-            result.put("oldNickname", parts[4]);
-        }
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new SetNicknameEvent(
+                parts[0],
+                parts[1],
+                Integer.parseInt(parts[2]),
+                parts[3],
+                parts.length > 4 ? parts[4] : "",
+                ChatEvent.SET_NICKNAME,
+                raw,
+                System.currentTimeMillis());
     }
 }

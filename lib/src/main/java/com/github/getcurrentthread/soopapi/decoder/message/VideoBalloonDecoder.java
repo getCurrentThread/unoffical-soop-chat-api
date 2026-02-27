@@ -1,26 +1,26 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.VideoBalloonEvent;
 
 public class VideoBalloonDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("chatNo", parts[0]);
-        result.put("bjId", parts[1]);
-        result.put("userId", parts[2]);
-        result.put("userNickname", parts[3]);
-        result.put("balloonCount", Integer.parseInt(parts[4]));
-        result.put("fanOrder", Integer.parseInt(parts[5]));
-        result.put("isTopFan", Integer.parseInt(parts[7]));
-        result.put("relay", parts[8]);
-        result.put("fileName", parts[12]);
-        result.put("isDefault", "1".equals(parts[13]));
-
-        if (parts.length > 14) {
-            result.put("extraData", parts[14]);
-        }
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new VideoBalloonEvent(
+                parts[0],
+                parts[1],
+                parts[2],
+                parts[3],
+                Integer.parseInt(parts[4]),
+                Integer.parseInt(parts[5]),
+                Integer.parseInt(parts[7]),
+                parts[8],
+                parts[12],
+                "1".equals(parts[13]),
+                parts.length > 14 ? parts[14] : "",
+                ChatEvent.VIDEO_BALLOON,
+                raw,
+                System.currentTimeMillis());
     }
 }

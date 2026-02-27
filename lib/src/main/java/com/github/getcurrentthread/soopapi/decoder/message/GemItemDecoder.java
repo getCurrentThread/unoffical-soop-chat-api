@@ -1,15 +1,18 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.GemItemSendEvent;
 
 public class GemItemDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("receiverId", parts[1]);
-        result.put("receiverNick", parts[2]);
-        result.put("itemName", parts[3]);
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new GemItemSendEvent(
+                parts[1],
+                parts[2],
+                parts[3],
+                ChatEvent.GEM_ITEM_SEND,
+                raw,
+                System.currentTimeMillis());
     }
 }

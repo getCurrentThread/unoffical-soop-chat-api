@@ -1,14 +1,13 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BanWordEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 
 public class BanWordDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("replaceWord", parts[0]);
-        result.put("banWordList", parts[1].split(","));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new BanWordEvent(
+                parts[0], parts[1].split(","), ChatEvent.BAN_WORD, raw, System.currentTimeMillis());
     }
 }

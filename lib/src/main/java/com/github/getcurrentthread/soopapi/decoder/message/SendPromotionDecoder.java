@@ -1,12 +1,12 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.SendPromotionEvent;
 
 public class SendPromotionDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        return null;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new SendPromotionEvent(ChatEvent.SEND_PROMOTION, raw, System.currentTimeMillis());
     }
 }

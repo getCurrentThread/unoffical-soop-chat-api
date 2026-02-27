@@ -1,17 +1,20 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.QuitChannelEvent;
 
 public class QuitChannelDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("quitType", Integer.parseInt(parts[2]));
-        result.put("adminKickCount", Integer.parseInt(parts[3]));
-        result.put("nickname", parts[4]);
-        result.put("bannedRoomBjId", parts[5]);
-        result.put("bannedRoomBjNickname", parts[6]);
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new QuitChannelEvent(
+                Integer.parseInt(parts[2]),
+                Integer.parseInt(parts[3]),
+                parts[4],
+                parts[5],
+                parts[6],
+                ChatEvent.QUIT_CHANNEL,
+                raw,
+                System.currentTimeMillis());
     }
 }

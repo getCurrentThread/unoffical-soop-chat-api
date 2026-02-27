@@ -1,18 +1,21 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.NotifyVrEvent;
 
 public class NotifyVRDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("action", Integer.parseInt(parts[0]));
-        result.put("bjId", parts[1]);
-        result.put("vrId", parts[2]);
-        result.put("rtmp", parts[3]);
-        result.put("hls", parts[4]);
-        result.put("vrType", Integer.parseInt(parts[5]));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new NotifyVrEvent(
+                Integer.parseInt(parts[0]),
+                parts[1],
+                parts[2],
+                parts[3],
+                parts[4],
+                Integer.parseInt(parts[5]),
+                ChatEvent.NOTIFY_VR,
+                raw,
+                System.currentTimeMillis());
     }
 }

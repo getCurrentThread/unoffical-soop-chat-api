@@ -3,10 +3,13 @@ package com.github.getcurrentthread.soopapi.decoder.message;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.ChuserExtendEvent;
+
 public class ChuserExtendDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
+    public BaseEvent decode(String[] parts, String raw) {
         Map<String, Map<String, Integer>> userStatus = new HashMap<>();
 
         // parts[0]는 채팅방 번호 등 다른 정보일 수 있으므로 1부터 시작
@@ -31,7 +34,7 @@ public class ChuserExtendDecoder implements IMessageDecoder {
             userStatus.put(userId, status);
         }
 
-        result.put("userStatus", userStatus);
-        return result;
+        return new ChuserExtendEvent(
+                userStatus, ChatEvent.CHUSER_EXTEND, raw, System.currentTimeMillis());
     }
 }

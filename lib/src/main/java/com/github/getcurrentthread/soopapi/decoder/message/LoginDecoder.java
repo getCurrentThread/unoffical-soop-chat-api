@@ -1,14 +1,12 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.LoginEvent;
 
 public class LoginDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("userId", parts[0]);
-        result.put("userFlag", parts[1]);
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new LoginEvent(parts[0], parts[1], ChatEvent.LOGIN, raw, System.currentTimeMillis());
     }
 }

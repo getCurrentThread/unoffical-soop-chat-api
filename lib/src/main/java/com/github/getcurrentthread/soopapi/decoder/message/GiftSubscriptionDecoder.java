@@ -1,25 +1,28 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.SendSubscriptionEvent;
 
 public class GiftSubscriptionDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("senderId", parts[1]);
-        result.put("senderNickname", parts[2]);
-        result.put("receiverId", parts[3]);
-        result.put("receiverNickname", parts[4]);
-        result.put("subscriptionId", parts[5]);
-        result.put("subscriptionNickname", parts[6]);
-        result.put("itemType", Integer.valueOf(parts[7]));
-        result.put("itemCode", parts[8]);
-        result.put("isSubscription", Integer.valueOf(parts[9]));
-        result.put("subscriptionType", parts[10]);
-        result.put("subscriptionPeriod", parts[11]);
-        result.put("subscriptionRemain", Integer.valueOf(parts[12]));
-        result.put("subscriptionPaycount", Integer.valueOf(parts[13]));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new SendSubscriptionEvent(
+                parts[1],
+                parts[2],
+                parts[3],
+                parts[4],
+                parts[5],
+                parts[6],
+                Integer.valueOf(parts[7]),
+                parts[8],
+                Integer.valueOf(parts[9]),
+                parts[10],
+                parts[11],
+                Integer.valueOf(parts[12]),
+                Integer.valueOf(parts[13]),
+                ChatEvent.SEND_SUBSCRIPTION,
+                raw,
+                System.currentTimeMillis());
     }
 }

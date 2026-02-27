@@ -1,16 +1,19 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.ChocolateEvent;
 
 public class ChocolateDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("bjId", parts[1]);
-        result.put("senderId", parts[2]);
-        result.put("senderNickname", parts[3]);
-        result.put("count", Integer.parseInt(parts[4]));
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new ChocolateEvent(
+                parts[1],
+                parts[2],
+                parts[3],
+                Integer.parseInt(parts[4]),
+                ChatEvent.CHOCOLATE,
+                raw,
+                System.currentTimeMillis());
     }
 }

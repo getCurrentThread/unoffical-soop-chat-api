@@ -1,14 +1,17 @@
 package com.github.getcurrentthread.soopapi.decoder.message;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.CliDobaeInfoEvent;
 
 public class CliDobaeInfoDecoder implements IMessageDecoder {
     @Override
-    public Map<String, Object> decode(String[] parts) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("dobaeInfo", Integer.parseInt(parts[0]));
-        result.put("userId", parts[1]);
-        return result;
+    public BaseEvent decode(String[] parts, String raw) {
+        return new CliDobaeInfoEvent(
+                Integer.parseInt(parts[0]),
+                parts[1],
+                ChatEvent.CLI_DOBAE_INFO,
+                raw,
+                System.currentTimeMillis());
     }
 }
