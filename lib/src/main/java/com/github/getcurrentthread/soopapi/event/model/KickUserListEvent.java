@@ -6,7 +6,7 @@ import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
 public record KickUserListEvent(
         List<KickedUser> kickedUsers, ChatEvent eventType, String raw, long timestamp)
-        implements BaseEvent {
+        implements ModerationBaseEvent {
     public record KickedUser(
             String userId,
             String userNickname,

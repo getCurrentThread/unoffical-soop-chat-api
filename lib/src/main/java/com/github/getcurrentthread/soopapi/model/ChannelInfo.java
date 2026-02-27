@@ -1,18 +1,9 @@
 package com.github.getcurrentthread.soopapi.model;
 
-public class ChannelInfo {
-    private static final String SEPARATOR = "+" + "-".repeat(70) + "+";
-    public final String CHDOMAIN, CHATNO, FTK, TITLE, BJID, CHPT;
+public record ChannelInfo(
+        String CHDOMAIN, String CHATNO, String FTK, String TITLE, String BJID, String CHPT) {
 
-    public ChannelInfo(
-            String CHDOMAIN, String CHATNO, String FTK, String TITLE, String BJID, String CHPT) {
-        this.CHDOMAIN = CHDOMAIN;
-        this.CHATNO = CHATNO;
-        this.FTK = FTK;
-        this.TITLE = TITLE;
-        this.BJID = BJID;
-        this.CHPT = CHPT;
-    }
+    private static final String SEPARATOR = "+" + "-".repeat(70) + "+";
 
     @Override
     public String toString() {

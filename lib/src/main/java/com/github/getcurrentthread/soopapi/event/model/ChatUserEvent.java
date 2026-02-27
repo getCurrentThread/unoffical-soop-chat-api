@@ -6,6 +6,6 @@ import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
 public record ChatUserEvent(
         int type, List<ChatUserEntry> userList, ChatEvent eventType, String raw, long timestamp)
-        implements BaseEvent {
+        implements SystemBaseEvent {
     public record ChatUserEntry(String id, String nickname, String flag) {}
 }

@@ -10,4 +10,4 @@ public record ItemDropsEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements ItemBaseEvent {}

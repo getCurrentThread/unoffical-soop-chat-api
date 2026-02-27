@@ -11,4 +11,4 @@ public record FreecatOwnerJoinEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements SystemBaseEvent {}

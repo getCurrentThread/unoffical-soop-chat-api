@@ -20,7 +20,8 @@ public class WebSocketPacketBuilder {
         return buildPacket(
                 "0002",
                 String.format(
-                        "%s%s%s", SOOPConstants.F, channelInfo.CHATNO, SOOPConstants.F.repeat(5)));
+                        "%s%s%s",
+                        SOOPConstants.F, channelInfo.CHATNO(), SOOPConstants.F.repeat(5)));
     }
 
     // 패킷 구조 생성을 위한 유틸리티 메서드

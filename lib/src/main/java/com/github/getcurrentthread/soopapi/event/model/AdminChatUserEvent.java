@@ -10,6 +10,6 @@ public record AdminChatUserEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {
+        implements ModerationBaseEvent {
     public record AdminChatUserEntry(String id, String nickname, String flag) {}
 }

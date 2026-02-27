@@ -63,7 +63,7 @@ public class WebSocketManager implements AutoCloseable {
         String wsUrl =
                 String.format(
                         "wss://%s:%s/Websocket/%s",
-                        channelInfo.CHDOMAIN, channelInfo.CHPT, config.getBid());
+                        channelInfo.CHDOMAIN(), channelInfo.CHPT(), config.getBid());
         LOGGER.info("Attempting to connect to WebSocket URL: " + wsUrl);
 
         CompletableFuture<Void> connectionFuture = new CompletableFuture<>();
@@ -79,10 +79,12 @@ public class WebSocketManager implements AutoCloseable {
             // 포트 확인 - 일부 서버는 문자열로 포트 번호를 반환할 수 있음
             int portNumber;
             try {
-                portNumber = Integer.parseInt(channelInfo.CHPT);
+                portNumber = Integer.parseInt(channelInfo.CHPT());
             } catch (NumberFormatException e) {
                 LOGGER.warning(
-                        "Invalid port number format: " + channelInfo.CHPT + ", using default 8001");
+                        "Invalid port number format: "
+                                + channelInfo.CHPT()
+                                + ", using default 8001");
                 portNumber = 8001;
             }
 
@@ -91,7 +93,7 @@ public class WebSocketManager implements AutoCloseable {
                     new URI(
                             "wss",
                             null,
-                            channelInfo.CHDOMAIN,
+                            channelInfo.CHDOMAIN(),
                             portNumber,
                             "/Websocket/" + config.getBid(),
                             null,
@@ -332,30 +334,7 @@ public class WebSocketManager implements AutoCloseable {
                 });
     }
 
-    /** 웹소켓 상태 정보를 포함하는 클래스 */
-    public static class WebSocketStatus {
-        private final boolean connected;
-        private final int retryCount;
-        private final int maxRetries;
-
-        public WebSocketStatus(boolean connected, int retryCount, int maxRetries) {
-            this.connected = connected;
-            this.retryCount = retryCount;
-            this.maxRetries = maxRetries;
-        }
-
-        public boolean isConnected() {
-            return connected;
-        }
-
-        public int getRetryCount() {
-            return retryCount;
-        }
-
-        public int getMaxRetries() {
-            return maxRetries;
-        }
-    }
+    public record WebSocketStatus(boolean connected, int retryCount, int maxRetries) {}
 
     @Override
     public void close() {

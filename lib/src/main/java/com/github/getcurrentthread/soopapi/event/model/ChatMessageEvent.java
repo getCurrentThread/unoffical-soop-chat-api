@@ -15,4 +15,4 @@ public record ChatMessageEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements ChatBaseEvent {}

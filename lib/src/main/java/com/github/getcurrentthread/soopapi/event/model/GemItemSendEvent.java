@@ -9,4 +9,4 @@ public record GemItemSendEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements DonationBaseEvent {}

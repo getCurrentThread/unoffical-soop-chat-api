@@ -10,4 +10,4 @@ public record ChocolateEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements DonationBaseEvent {}

@@ -4,4 +4,4 @@ import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
 public record GetIceModeRelayEvent(
         int iceMode, int freezeType, ChatEvent eventType, String raw, long timestamp)
-        implements BaseEvent {}
+        implements SystemBaseEvent {}

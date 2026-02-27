@@ -13,4 +13,4 @@ public record StationAdconEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements DonationBaseEvent {}

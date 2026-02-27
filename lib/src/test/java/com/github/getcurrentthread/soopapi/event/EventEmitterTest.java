@@ -1,14 +1,14 @@
 package com.github.getcurrentthread.soopapi.event;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import com.github.getcurrentthread.soopapi.event.model.ChatMessageEvent;
 import com.github.getcurrentthread.soopapi.event.model.UnknownEvent;
@@ -17,7 +17,7 @@ public class EventEmitterTest {
 
     private EventEmitter emitter;
 
-    @Before
+    @BeforeEach
     public void setup() {
         emitter = new EventEmitter();
     }
@@ -51,7 +51,7 @@ public class EventEmitterTest {
 
         emitter.emit(ChatEvent.CHAT_MESSAGE, event);
 
-        assertTrue("Event should be received", latch.await(1, TimeUnit.SECONDS));
+        assertTrue(latch.await(1, TimeUnit.SECONDS), "Event should be received");
         assertEquals("hello", received.get().message());
         assertEquals("user1", received.get().senderId());
     }
@@ -89,7 +89,7 @@ public class EventEmitterTest {
         emitter.emit(ChatEvent.CHAT_MESSAGE, event);
         Thread.sleep(100);
 
-        assertEquals("Listener should only be called once", 1, callCount.get());
+        assertEquals(1, callCount.get(), "Listener should only be called once");
     }
 
     @Test
@@ -119,7 +119,7 @@ public class EventEmitterTest {
         emitter.emit(ChatEvent.CHAT_MESSAGE, event);
         Thread.sleep(100);
 
-        assertEquals("Listener should not be called after off()", 0, callCount.get());
+        assertEquals(0, callCount.get(), "Listener should not be called after off()");
     }
 
     @Test
@@ -146,7 +146,7 @@ public class EventEmitterTest {
 
         emitter.emit(ChatEvent.CHAT_MESSAGE, event);
 
-        assertTrue("Both listeners should be called", latch.await(1, TimeUnit.SECONDS));
+        assertTrue(latch.await(1, TimeUnit.SECONDS), "Both listeners should be called");
     }
 
     @Test
@@ -174,7 +174,7 @@ public class EventEmitterTest {
         emitter.emit(ChatEvent.CHAT_MESSAGE, event);
         Thread.sleep(100);
 
-        assertEquals("No listeners after clear()", 0, callCount.get());
+        assertEquals(0, callCount.get(), "No listeners after clear()");
     }
 
     @Test
@@ -215,8 +215,8 @@ public class EventEmitterTest {
 
         latch.await(1, TimeUnit.SECONDS);
 
-        assertEquals("Chat listener should be cleared", 0, chatCount.get());
-        assertEquals("Unknown listener should still work", 1, unknownCount.get());
+        assertEquals(0, chatCount.get(), "Chat listener should be cleared");
+        assertEquals(1, unknownCount.get(), "Unknown listener should still work");
     }
 
     @Test
@@ -225,6 +225,6 @@ public class EventEmitterTest {
                 emitter.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {})
                         .on(ChatEvent.JOIN_CHANNEL, e -> {});
 
-        assertSame("Method chaining should return same emitter", emitter, result);
+        assertSame(emitter, result, "Method chaining should return same emitter");
     }
 }

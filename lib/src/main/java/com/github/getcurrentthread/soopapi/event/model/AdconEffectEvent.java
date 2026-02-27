@@ -20,4 +20,4 @@ public record AdconEffectEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements DonationBaseEvent {}

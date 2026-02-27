@@ -11,4 +11,4 @@ public record JoinChannelEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements SystemBaseEvent {}

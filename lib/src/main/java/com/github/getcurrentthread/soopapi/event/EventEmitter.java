@@ -18,7 +18,7 @@ public class EventEmitter {
     @SuppressWarnings("unchecked")
     public <T extends BaseEvent> EventEmitter on(ChatEvent event, EventListener<T> listener) {
         listeners
-                .computeIfAbsent(event, k -> new CopyOnWriteArrayList<>())
+                .computeIfAbsent(event, _ -> new CopyOnWriteArrayList<>())
                 .add((EventListener<? extends BaseEvent>) listener);
         return this;
     }
@@ -34,7 +34,7 @@ public class EventEmitter {
                     }
                 };
         listeners
-                .computeIfAbsent(event, k -> new CopyOnWriteArrayList<>())
+                .computeIfAbsent(event, _ -> new CopyOnWriteArrayList<>())
                 .add((EventListener<? extends BaseEvent>) wrapper);
         return this;
     }

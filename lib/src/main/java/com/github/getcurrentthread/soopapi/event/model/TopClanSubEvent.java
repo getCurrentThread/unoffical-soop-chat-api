@@ -3,4 +3,4 @@ package com.github.getcurrentthread.soopapi.event.model;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
 public record TopClanSubEvent(ChatEvent eventType, String raw, long timestamp)
-        implements BaseEvent {}
+        implements DonationBaseEvent {}

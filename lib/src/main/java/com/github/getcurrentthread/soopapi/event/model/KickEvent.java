@@ -11,4 +11,4 @@ public record KickEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements ModerationBaseEvent {}

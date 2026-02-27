@@ -11,4 +11,4 @@ public record QuitChannelEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements SystemBaseEvent {}

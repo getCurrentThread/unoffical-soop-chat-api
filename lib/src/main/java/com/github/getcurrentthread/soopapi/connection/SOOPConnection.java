@@ -18,6 +18,7 @@ public class SOOPConnection {
     private static final Logger LOGGER = Logger.getLogger(SOOPConnection.class.getName());
 
     private final SOOPChatConfig config;
+    private final ExecutorService executor;
     private final MessageDispatcher messageDispatcher;
     private final WebSocketManager webSocketManager;
 
@@ -32,6 +33,7 @@ public class SOOPConnection {
             ScheduledExecutorService scheduler,
             EventEmitter eventEmitter) {
         this.config = config;
+        this.executor = messageProcessor;
 
         this.messageDispatcher =
                 new MessageDispatcher(
@@ -63,15 +65,15 @@ public class SOOPConnection {
                             channelInfo = SOOPChatUtils.getPlayerLive(bno, config.getBid());
                             LOGGER.info("채널 정보 수신됨: " + channelInfo);
 
-                            if (channelInfo.CHPT == null || channelInfo.CHPT.trim().isEmpty()) {
+                            if (channelInfo.CHPT() == null || channelInfo.CHPT().trim().isEmpty()) {
                                 throw new ConnectionException(
-                                        "채널 포트 정보가 유효하지 않습니다: " + channelInfo.CHPT);
+                                        "채널 포트 정보가 유효하지 않습니다: " + channelInfo.CHPT());
                             }
 
-                            if (channelInfo.CHDOMAIN == null
-                                    || channelInfo.CHDOMAIN.trim().isEmpty()) {
+                            if (channelInfo.CHDOMAIN() == null
+                                    || channelInfo.CHDOMAIN().trim().isEmpty()) {
                                 throw new ConnectionException(
-                                        "채널 도메인 정보가 유효하지 않습니다: " + channelInfo.CHDOMAIN);
+                                        "채널 도메인 정보가 유효하지 않습니다: " + channelInfo.CHDOMAIN());
                             }
 
                             int maxTries = 5;
@@ -97,7 +99,8 @@ public class SOOPConnection {
                             throw new CompletionException(new ConnectionException("연결에 실패했습니다", e));
                         }
                     }
-                });
+                },
+                executor);
     }
 
     public CompletableFuture<Void> reconnect() {
@@ -130,7 +133,8 @@ public class SOOPConnection {
                             isReconnecting = false;
                         }
                     }
-                });
+                },
+                executor);
     }
 
     public CompletableFuture<Void> sendChat(String message) {
@@ -153,34 +157,12 @@ public class SOOPConnection {
                 .thenApply(
                         wsStatus ->
                                 new ConnectionStatus(
-                                        wsStatus.isConnected(),
+                                        wsStatus.connected(),
                                         isReconnecting,
-                                        wsStatus.getRetryCount()));
+                                        wsStatus.retryCount()));
     }
 
-    public static class ConnectionStatus {
-        private final boolean connected;
-        private final boolean reconnecting;
-        private final int retryCount;
-
-        public ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {
-            this.connected = connected;
-            this.reconnecting = reconnecting;
-            this.retryCount = retryCount;
-        }
-
-        public boolean isConnected() {
-            return connected;
-        }
-
-        public boolean isReconnecting() {
-            return reconnecting;
-        }
-
-        public int getRetryCount() {
-            return retryCount;
-        }
-    }
+    public record ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {}
 
     public boolean isConnected() {
         return isConnected && webSocketManager.isConnected();

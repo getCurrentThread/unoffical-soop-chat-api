@@ -8,8 +8,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
@@ -21,7 +22,7 @@ public class SOOPChatClientTest {
 
     private static final Logger LOGGER = Logger.getLogger(SOOPChatClientTest.class.getName());
 
-    @Before
+    @BeforeEach
     public void setup() {
         System.setProperty(
                 "java.util.logging.SimpleFormatter.format",
@@ -39,6 +40,7 @@ public class SOOPChatClientTest {
     }
 
     @Test
+    @Tag("integration")
     public void testSOOPChatClientConnection() throws Exception {
         String testBID = "lshooooo";
         LOGGER.info("Starting test with BID: " + testBID);

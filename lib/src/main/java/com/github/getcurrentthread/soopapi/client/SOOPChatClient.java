@@ -2,6 +2,8 @@ package com.github.getcurrentthread.soopapi.client;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -17,6 +19,9 @@ import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class SOOPChatClient implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(SOOPChatClient.class.getName());
+
+    private static final ExecutorService VIRTUAL_EXECUTOR =
+            Executors.newVirtualThreadPerTaskExecutor();
 
     private final SOOPChatConfig config;
     private final ConnectionManager connectionManager;
@@ -69,21 +74,22 @@ public class SOOPChatClient implements AutoCloseable {
                         isConnected = true;
                     } catch (Exception e) {
                         LOGGER.log(Level.SEVERE, "채팅 연결 실패", e);
-                        if (e.getCause() instanceof ConnectionException) {
-                            throw new CompletionException(e.getCause());
+                        if (e.getCause() instanceof ConnectionException ce) {
+                            throw new CompletionException(ce);
                         } else {
                             throw new CompletionException("채팅 연결 실패", e);
                         }
                     }
-                });
+                },
+                VIRTUAL_EXECUTOR);
     }
 
     public void connectToChattingBlocking() throws ConnectionException {
         try {
             connectToChat().join();
         } catch (CompletionException e) {
-            if (e.getCause() instanceof ConnectionException) {
-                throw (ConnectionException) e.getCause();
+            if (e.getCause() instanceof ConnectionException ce) {
+                throw ce;
             } else {
                 throw new ConnectionException("채팅 연결 실패", e);
             }
@@ -125,9 +131,9 @@ public class SOOPChatClient implements AutoCloseable {
                 .thenApply(
                         status ->
                                 new ConnectionStatus(
-                                        status.isConnected(),
-                                        status.isReconnecting(),
-                                        status.getRetryCount()));
+                                        status.connected(),
+                                        status.reconnecting(),
+                                        status.retryCount()));
     }
 
     public void disconnect() {
@@ -162,27 +168,5 @@ public class SOOPChatClient implements AutoCloseable {
         return eventEmitter;
     }
 
-    public static class ConnectionStatus {
-        private final boolean connected;
-        private final boolean reconnecting;
-        private final int retryCount;
-
-        public ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {
-            this.connected = connected;
-            this.reconnecting = reconnecting;
-            this.retryCount = retryCount;
-        }
-
-        public boolean isConnected() {
-            return connected;
-        }
-
-        public boolean isReconnecting() {
-            return reconnecting;
-        }
-
-        public int getRetryCount() {
-            return retryCount;
-        }
-    }
+    public record ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {}
 }

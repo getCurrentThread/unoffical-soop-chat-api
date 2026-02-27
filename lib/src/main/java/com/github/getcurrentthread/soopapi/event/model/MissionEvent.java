@@ -6,4 +6,4 @@ import com.github.getcurrentthread.soopapi.event.ChatEvent;
 
 public record MissionEvent(
         Map<String, Object> data, ChatEvent eventType, String raw, long timestamp)
-        implements BaseEvent {}
+        implements ItemBaseEvent {}

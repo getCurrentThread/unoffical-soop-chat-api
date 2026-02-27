@@ -5,7 +5,9 @@
 ## 주요 기능
 
 - **이벤트 기반 아키텍처**: 타입 안전한 `on(event, handler)` 패턴으로 이벤트 구독
-- **83개 이벤트 타입 지원**: 채팅 메시지, 풍선, 이모티콘, 구독 등 모든 이벤트를 Java Record로 디코딩
+- **Sealed 이벤트 계층**: `ChatBaseEvent`, `DonationBaseEvent`, `SystemBaseEvent` 등 6개 카테고리로 분류된 이벤트 타입
+- **93개 이벤트 타입 지원**: 채팅 메시지, 풍선, 이모티콘, 구독 등 모든 이벤트를 Java Record로 디코딩
+- **Virtual Threads**: JDK 21+ Virtual Thread 기반 비동기 메시지 처리
 - **통합 API 클라이언트**: `SoopClient` 파사드로 인증, 방송 정보, 채널 정보, 채팅을 통합 관리
 - **채팅 전송 지원**: `sendChat()` 메서드로 채팅 메시지 전송
 - WebSocket 기반 자동 재연결 및 핑 메커니즘
@@ -14,6 +16,18 @@
 
 - Java 25 이상
 - Gradle 9.3.1 이상
+- `--enable-preview` 플래그 필요 (Preview 기능 사용: Stable Values, Structured Concurrency)
+
+> **참고**: 이 라이브러리는 JDK 25 Preview 기능을 사용합니다. 소비자 프로젝트에서도 컴파일 및 실행 시 `--enable-preview` 플래그를 추가해야 합니다.
+>
+> ```gradle
+> tasks.withType(JavaCompile) {
+>     options.compilerArgs.addAll(['--enable-preview'])
+> }
+> test {
+>     jvmArgs(['--enable-preview'])
+> }
+> ```
 
 ## 설치
 

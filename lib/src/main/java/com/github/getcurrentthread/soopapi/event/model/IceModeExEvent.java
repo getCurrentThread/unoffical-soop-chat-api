@@ -10,4 +10,4 @@ public record IceModeExEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements SystemBaseEvent {}

@@ -9,4 +9,4 @@ public record BlindKickEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements ModerationBaseEvent {}

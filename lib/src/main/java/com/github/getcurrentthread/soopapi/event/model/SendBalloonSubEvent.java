@@ -14,4 +14,4 @@ public record SendBalloonSubEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements DonationBaseEvent {}

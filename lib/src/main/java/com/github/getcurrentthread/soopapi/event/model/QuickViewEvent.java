@@ -11,4 +11,4 @@ public record QuickViewEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements ItemBaseEvent {}

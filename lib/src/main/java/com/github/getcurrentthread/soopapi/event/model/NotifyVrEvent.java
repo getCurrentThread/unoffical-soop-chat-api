@@ -12,4 +12,4 @@ public record NotifyVrEvent(
         ChatEvent eventType,
         String raw,
         long timestamp)
-        implements BaseEvent {}
+        implements SystemBaseEvent {}

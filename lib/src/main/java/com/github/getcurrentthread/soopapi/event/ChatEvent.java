@@ -1,5 +1,8 @@
 package com.github.getcurrentthread.soopapi.event;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public enum ChatEvent {
     KEEP_ALIVE(0, "연결 유지"),
     LOGIN(1, "로그인"),
@@ -94,6 +97,8 @@ public enum ChatEvent {
     ADMIN_CHUSER_EXTEND(128, "관리자 채팅 사용자 확장"),
     NONE_TYPE(-1, "알 수 없는 타입");
 
+    private static final StableValue<Map<Integer, ChatEvent>> CODE_MAP = StableValue.of();
+
     private final int code;
     private final String description;
 
@@ -103,12 +108,15 @@ public enum ChatEvent {
     }
 
     public static ChatEvent fromCode(int code) {
-        for (ChatEvent event : values()) {
-            if (event.code == code) {
-                return event;
-            }
-        }
-        return NONE_TYPE;
+        return CODE_MAP.orElseSet(
+                        () -> {
+                            var map = new HashMap<Integer, ChatEvent>();
+                            for (ChatEvent e : values()) {
+                                map.put(e.code, e);
+                            }
+                            return Map.copyOf(map);
+                        })
+                .getOrDefault(code, NONE_TYPE);
     }
 
     public int getCode() {

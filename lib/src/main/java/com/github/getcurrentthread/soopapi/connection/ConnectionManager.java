@@ -11,31 +11,18 @@ import com.github.getcurrentthread.soopapi.exception.ConnectionException;
 
 public class ConnectionManager {
     private static final Logger LOGGER = Logger.getLogger(ConnectionManager.class.getName());
-    private static final int CORE_POOL_SIZE = Runtime.getRuntime().availableProcessors();
-    private static final int MAX_POOL_SIZE = CORE_POOL_SIZE * 2;
-    private static final int KEEP_ALIVE_TIME = 60; // seconds
+    private static final StableValue<ConnectionManager> INSTANCE = StableValue.of();
 
     private final ExecutorService messageProcessorPool;
     private final ScheduledExecutorService sharedScheduler;
     private final Map<String, SOOPConnection> connections;
 
-    private static class InstanceHolder {
-        private static final ConnectionManager INSTANCE = new ConnectionManager();
-    }
-
     private ConnectionManager() {
-        this.messageProcessorPool =
-                new ThreadPoolExecutor(
-                        CORE_POOL_SIZE,
-                        MAX_POOL_SIZE,
-                        KEEP_ALIVE_TIME,
-                        TimeUnit.SECONDS,
-                        new LinkedBlockingQueue<>(5000),
-                        new ThreadPoolExecutor.CallerRunsPolicy());
+        this.messageProcessorPool = Executors.newVirtualThreadPerTaskExecutor();
 
         this.sharedScheduler =
                 Executors.newScheduledThreadPool(
-                        2,
+                        1,
                         r -> {
                             Thread t = new Thread(r, "SOOP-Scheduler");
                             t.setDaemon(true);
@@ -46,7 +33,7 @@ public class ConnectionManager {
     }
 
     public static ConnectionManager getInstance() {
-        return InstanceHolder.INSTANCE;
+        return INSTANCE.orElseSet(ConnectionManager::new);
     }
 
     public CompletableFuture<SOOPConnection> connect(
@@ -59,7 +46,7 @@ public class ConnectionManager {
                         SOOPConnection connection =
                                 connections.computeIfAbsent(
                                         bid,
-                                        k ->
+                                        _ ->
                                                 new SOOPConnection(
                                                         config,
                                                         messageProcessorPool,
@@ -73,7 +60,8 @@ public class ConnectionManager {
                         throw new CompletionException(
                                 new ConnectionException("채널에 연결할 수 없습니다: " + bid, e));
                     }
-                });
+                },
+                messageProcessorPool);
     }
 
     public SOOPConnection getConnection(String bid) {
@@ -92,8 +80,8 @@ public class ConnectionManager {
                         status ->
                                 new ConnectionStatus(
                                         connection.isConnected(),
-                                        status.isReconnecting(),
-                                        status.getRetryCount()));
+                                        status.reconnecting(),
+                                        status.retryCount()));
     }
 
     public CompletableFuture<Void> disconnect(String bid) {
@@ -103,13 +91,28 @@ public class ConnectionManager {
                     if (connection != null) {
                         connection.disconnect();
                     }
-                });
+                },
+                messageProcessorPool);
     }
 
     public CompletableFuture<Void> shutdown() {
         return CompletableFuture.runAsync(
                 () -> {
-                    connections.values().forEach(SOOPConnection::disconnect);
+                    try (var scope = StructuredTaskScope.open()) {
+                        connections
+                                .values()
+                                .forEach(
+                                        conn ->
+                                                scope.fork(
+                                                        () -> {
+                                                            conn.disconnect();
+                                                            return null;
+                                                        }));
+                        scope.join();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        LOGGER.log(Level.WARNING, "종료 중 인터럽트 발생", e);
+                    }
                     connections.clear();
 
                     messageProcessorPool.shutdown();
@@ -129,27 +132,5 @@ public class ConnectionManager {
                 });
     }
 
-    public static class ConnectionStatus {
-        private final boolean connected;
-        private final boolean reconnecting;
-        private final int retryCount;
-
-        public ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {
-            this.connected = connected;
-            this.reconnecting = reconnecting;
-            this.retryCount = retryCount;
-        }
-
-        public boolean isConnected() {
-            return connected;
-        }
-
-        public boolean isReconnecting() {
-            return reconnecting;
-        }
-
-        public int getRetryCount() {
-            return retryCount;
-        }
-    }
+    public record ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {}
 }
