@@ -10,6 +10,7 @@ import com.github.getcurrentthread.soopapi.decoder.factory.DefaultMessageDecoder
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.EventEmitter;
 import com.github.getcurrentthread.soopapi.event.model.JoinChannelEvent;
+import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.exception.ConnectionException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
@@ -161,6 +162,10 @@ public class SOOPConnection {
     }
 
     public CompletableFuture<Void> sendChat(String message) {
+        if (!config.isAuthenticated()) {
+            return CompletableFuture.failedFuture(
+                    new AuthenticationException("인증이 필요합니다. 채팅을 전송하려면 AuthCookie를 설정하세요."));
+        }
         return webSocketManager.sendChat(message);
     }
 

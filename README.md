@@ -42,7 +42,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.3.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.4.0'
 }
 ```
 
@@ -103,9 +103,6 @@ public class Example {
 
         chat.connectToChat().join();
 
-        // 채팅 전송
-        chat.sendChat("Hello!");
-
         // 프로그램 실행 유지
         Thread.sleep(Long.MAX_VALUE);
     }
@@ -139,14 +136,33 @@ public class DirectExample {
 }
 ```
 
-### 인증 (선택사항)
+### 인증 (채팅 전송 시 필수)
+
+읽기 전용(이벤트 수신)은 인증 없이 사용할 수 있지만, `sendChat()`으로 채팅을 전송하려면 반드시 인증이 필요합니다.
 
 ```java
 SoopClient client = new SoopClient();
 
+// 1. 로그인
 AuthCookie cookie = client.auth.signIn("userId", "password").join();
 if (cookie.success()) {
     System.out.println("로그인 성공");
+
+    // 2. 인증된 설정으로 채팅 클라이언트 생성
+    SOOPChatConfig config = new SOOPChatConfig.Builder()
+            .bid("streamerId")
+            .authCookie(cookie)
+            .build();
+
+    SOOPChatClient chat = new SOOPChatClient(config);
+
+    chat.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
+        System.out.println(e.senderNickname() + ": " + e.message());
+    });
+
+    // 3. 연결 후 채팅 전송
+    chat.connectToChat().join();
+    chat.sendChat("Hello!").join();
 }
 ```
 

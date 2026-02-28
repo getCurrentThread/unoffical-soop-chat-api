@@ -14,6 +14,7 @@ import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.EventEmitter;
 import com.github.getcurrentthread.soopapi.event.EventListener;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.exception.ConnectionException;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
@@ -98,6 +99,10 @@ public class SOOPChatClient implements AutoCloseable {
     }
 
     public CompletableFuture<Void> sendChat(String message) {
+        if (!config.isAuthenticated()) {
+            return CompletableFuture.failedFuture(
+                    new AuthenticationException("인증이 필요합니다. 채팅을 전송하려면 AuthCookie를 설정하세요."));
+        }
         if (connection == null || !isConnected) {
             return CompletableFuture.failedFuture(
                     new IllegalStateException("연결이 되어 있지 않습니다. 먼저 connectToChat을 호출하세요."));

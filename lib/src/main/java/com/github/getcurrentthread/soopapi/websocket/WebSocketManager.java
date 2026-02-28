@@ -14,6 +14,7 @@ import java.util.logging.Logger;
 import javax.net.ssl.SSLContext;
 
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
+import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
 import com.github.getcurrentthread.soopapi.util.SSLContextProvider;
 
@@ -356,6 +357,10 @@ public class WebSocketManager implements AutoCloseable {
     }
 
     public CompletableFuture<Void> sendChat(String message) {
+        if (!config.isAuthenticated()) {
+            return CompletableFuture.failedFuture(
+                    new AuthenticationException("인증이 필요합니다. 채팅을 전송하려면 AuthCookie를 설정하세요."));
+        }
         if (!isConnected() || webSocket == null) {
             return CompletableFuture.failedFuture(
                     new IllegalStateException("WebSocket is not connected"));

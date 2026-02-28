@@ -1,7 +1,10 @@
 package com.github.getcurrentthread.soopapi.client;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
@@ -12,9 +15,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import com.github.getcurrentthread.soopapi.api.model.AuthCookie;
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.model.ChatMessageEvent;
+import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
@@ -126,5 +131,57 @@ public class SOOPChatClientTest {
             client.disconnect();
             LOGGER.info("Test completed.");
         }
+    }
+
+    @Test
+    void sendChat_withoutAuth_throwsAuthenticationException() {
+        SOOPChatConfig config =
+                new SOOPChatConfig.Builder().bid("testStreamer").bno("12345").build();
+
+        SOOPChatClient client = new SOOPChatClient(config);
+
+        ExecutionException ex =
+                assertThrows(ExecutionException.class, () -> client.sendChat("Hello!").get());
+
+        assertInstanceOf(AuthenticationException.class, ex.getCause());
+    }
+
+    @Test
+    void sendChat_withFailedAuthCookie_throwsAuthenticationException() {
+        AuthCookie failedCookie =
+                new AuthCookie(
+                        "user", false, "", null, null, null, null, null, null, null, null, null,
+                        null);
+
+        SOOPChatConfig config =
+                new SOOPChatConfig.Builder()
+                        .bid("testStreamer")
+                        .bno("12345")
+                        .authCookie(failedCookie)
+                        .build();
+
+        SOOPChatClient client = new SOOPChatClient(config);
+
+        ExecutionException ex =
+                assertThrows(ExecutionException.class, () -> client.sendChat("Hello!").get());
+
+        assertInstanceOf(AuthenticationException.class, ex.getCause());
+    }
+
+    @Test
+    void sendChat_withoutAuth_prioritizesAuthOverConnection() {
+        SOOPChatConfig config =
+                new SOOPChatConfig.Builder().bid("testStreamer").bno("12345").build();
+
+        SOOPChatClient client = new SOOPChatClient(config);
+
+        // 미연결 + 미인증 상태에서 인증 오류가 먼저 발생해야 함
+        assertFalse(client.isConnected());
+
+        ExecutionException ex =
+                assertThrows(ExecutionException.class, () -> client.sendChat("Hello!").get());
+
+        assertInstanceOf(
+                AuthenticationException.class, ex.getCause(), "연결 오류가 아닌 인증 오류가 먼저 발생해야 합니다");
     }
 }
