@@ -34,13 +34,13 @@
 1. 저장소 복제:
 
    ```
-   git clone https://github.com/getCurrentThread/unofficial-soop-chat-api.git
+   git clone https://github.com/getCurrentThread/soopapi.git
    ```
 
 2. 프로젝트 빌드:
 
    ```
-   cd unofficial-soop-chat-api
+   cd soopapi
    ./gradlew build
    ```
 
