@@ -45,7 +45,8 @@ class SOOPChatClientRealConnectionTest {
     static final String BROAD_LIST_URL =
             "https://static.file.sooplive.co.kr/pc/ko_KR/main_broad_list_with_adult_json.js";
     static final int TOP_N = 10;
-    static final int TEST_DURATION_MINUTES = 10;
+    static final int TEST_DURATION_MINUTES = 3;
+    static final int MAX_TOTAL_EVENTS = 30;
     static final String LOG_DIR = "test-logs";
 
     static final Logger logger = Logger.getLogger(SOOPChatClientRealConnectionTest.class.getName());
@@ -190,18 +191,28 @@ class SOOPChatClientRealConnectionTest {
 
         assertTrue(connectedCount.get() >= 5, "최소 5개 이상 연결 필요, 실제: " + connectedCount.get());
 
-        // === 4단계: 10분 대기 (1분마다 상태 로그) ===
-        logger.info("=== " + TEST_DURATION_MINUTES + "분 모니터링 시작 ===");
+        // === 4단계: 최대 3분 또는 30개 이벤트까지 대기 (10초마다 상태 확인) ===
+        logger.info(
+                "=== 모니터링 시작 (최대 "
+                        + TEST_DURATION_MINUTES
+                        + "분, "
+                        + MAX_TOTAL_EVENTS
+                        + "개 이벤트) ===");
 
-        for (int minute = 1; minute <= TEST_DURATION_MINUTES; minute++) {
-            Thread.sleep(60_000);
+        long deadline = System.currentTimeMillis() + TEST_DURATION_MINUTES * 60_000L;
+        int logIntervalSec = 0;
+        while (System.currentTimeMillis() < deadline && totalEvents.get() < MAX_TOTAL_EVENTS) {
+            Thread.sleep(10_000);
+            logIntervalSec += 10;
 
             long activeClients = clients.stream().filter(SOOPChatClient::isConnected).count();
             logger.info(
                     String.format(
-                            "=== [%d분 경과] 연결 클라이언트: %d, 총 수신 이벤트: %d ===",
-                            minute, activeClients, totalEvents.get()));
+                            "=== [%d초 경과] 연결 클라이언트: %d, 총 수신 이벤트: %d ===",
+                            logIntervalSec, activeClients, totalEvents.get()));
         }
+
+        logger.info("모니터링 종료 - 총 수신 이벤트: " + totalEvents.get());
 
         // === 5단계: 정리 & 통계 ===
         logger.info("=== 최종 통계 ===");

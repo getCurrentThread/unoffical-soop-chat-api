@@ -52,16 +52,20 @@ publishing {
 tasks.withType(Javadoc) {
     options.addBooleanOption('-enable-preview', true)
     options.addStringOption('source', '25')
+    options.addStringOption('Xdoclint:none', '-quiet')
 }
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
-    options.compilerArgs.addAll(['--enable-preview'])
+    options.compilerArgs.addAll(['--enable-preview', '-Xlint:-preview'])
     dependsOn 'spotlessApply'
 }
+
 test {
     jvmArgs(['--enable-preview'])
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
     testLogging {
         showStandardStreams = true
         events "passed", "skipped", "failed", "standardOut", "standardError"
