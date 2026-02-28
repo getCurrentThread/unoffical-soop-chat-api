@@ -1,0 +1,46 @@
+name: Update README Version
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Extract tag version
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Update version in README.md
+        run: |
+          sed -i "s|implementation 'com.github.getCurrentThread:soopapi:[^']*'|implementation 'com.github.getCurrentThread:soopapi:${{ steps.tag.outputs.version }}'|g" README.md
+
+      - name: Update version in gradle.properties
+        run: |
+          TAG="${{ steps.tag.outputs.version }}"
+          VERSION="${TAG#v}"
+          sed -i "s|^version=.*|version=${VERSION}|" gradle.properties
+
+      - name: Check for changes
+        id: diff
+        run: |
+          git diff --quiet && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md gradle.properties
+          git commit -m "chore: bump version to ${{ steps.tag.outputs.version }}"
+          git push

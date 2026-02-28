@@ -1,5 +1,8 @@
 # 비공식 SOOP 채팅 API
 
+[![CI](https://github.com/getCurrentThread/soopapi/actions/workflows/ci.yml/badge.svg)](https://github.com/getCurrentThread/soopapi/actions/workflows/ci.yml)
+[![JitPack](https://jitpack.io/v/getCurrentThread/soopapi.svg)](https://jitpack.io/#getCurrentThread/soopapi)
+
 이 프로젝트는 SOOP의 채팅 시스템과 상호 작용할 수 있는 비공식 Java 라이브러리입니다. 개발자들이 SOOP 채팅방에 연결하고, 메시지를 수신하며, 다양한 이벤트를 처리할 수 있도록 해줍니다.
 
 ## 주요 기능
@@ -39,13 +42,8 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:TAG'
+    implementation 'com.github.getCurrentThread:soopapi:v0.1.0'
 }
-```
-
-> `TAG`을 원하는 릴리스 태그(예: `v1.0.0`) 또는 커밋 해시로 교체하세요.
-
-[![](https://jitpack.io/v/getCurrentThread/soopapi.svg)](https://jitpack.io/#getCurrentThread/soopapi)
 
 ### 소스에서 빌드
 
