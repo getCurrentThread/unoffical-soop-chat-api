@@ -6,6 +6,7 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.getcurrentthread.soopapi.api.model.AuthCookie;
 import com.github.getcurrentthread.soopapi.api.model.LiveDetail;
 import com.github.getcurrentthread.soopapi.exception.SOOPChatException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
@@ -61,13 +62,20 @@ public class SoopLive {
     }
 
     public CompletableFuture<LiveDetail> detail(String streamerId, String bno) {
+        return detail(streamerId, bno, null);
+    }
+
+    public CompletableFuture<LiveDetail> detail(
+            String streamerId, String bno, AuthCookie authCookie) {
         String requestBody =
                 String.format(
                         "bid=%s&bno=%s&type=live&confirm_adult=false&player_type=html5&mode=landing&from_api=0&pwd=&stream_type=common&quality=HD",
                         streamerId, bno);
 
+        String cookieHeader = buildCookieHeader(authCookie);
+
         return httpClient
-                .postForm(PLAYER_LIVE_URL + "?bjid=" + streamerId, requestBody)
+                .postForm(PLAYER_LIVE_URL + "?bjid=" + streamerId, requestBody, cookieHeader)
                 .thenApply(
                         response -> {
                             if (response.statusCode() != 200) {
@@ -103,7 +111,20 @@ public class SoopLive {
                                         channel.get("CHATNO").getAsString(),
                                         channel.get("FTK").getAsString(),
                                         String.valueOf(channel.get("CHPT").getAsInt() + 1),
-                                        result);
+                                        result,
+                                        channel.has("BPS") ? channel.get("BPS").getAsString() : "",
+                                        channel.has("geo_cc")
+                                                ? channel.get("geo_cc").getAsString()
+                                                : "",
+                                        channel.has("geo_rc")
+                                                ? channel.get("geo_rc").getAsString()
+                                                : "",
+                                        channel.has("acpt_lang")
+                                                ? channel.get("acpt_lang").getAsString()
+                                                : "",
+                                        channel.has("svc_lang")
+                                                ? channel.get("svc_lang").getAsString()
+                                                : "");
                             } catch (SOOPChatException e) {
                                 throw e;
                             } catch (Exception e) {
@@ -120,6 +141,23 @@ public class SoopLive {
                 detail.ftk(),
                 detail.title(),
                 detail.bjId(),
-                detail.chatPort());
+                detail.chatPort(),
+                detail.bps(),
+                detail.geoCC(),
+                detail.geoRC(),
+                detail.acptLang(),
+                detail.svcLang());
+    }
+
+    private String buildCookieHeader(AuthCookie authCookie) {
+        if (authCookie == null || !authCookie.isAuthenticated()) {
+            return null;
+        }
+        return String.join(
+                "; ",
+                "AuthTicket=" + authCookie.authTicket(),
+                "_au=" + authCookie.au(),
+                "UserTicket=" + authCookie.userTicket(),
+                "RDB=" + authCookie.rdb());
     }
 }

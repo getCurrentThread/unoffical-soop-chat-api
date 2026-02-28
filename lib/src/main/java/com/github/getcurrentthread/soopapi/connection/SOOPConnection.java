@@ -7,7 +7,9 @@ import java.util.logging.Logger;
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
 import com.github.getcurrentthread.soopapi.decoder.factory.DefaultMessageDecoderFactory;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.EventEmitter;
+import com.github.getcurrentthread.soopapi.event.model.JoinChannelEvent;
 import com.github.getcurrentthread.soopapi.exception.ConnectionException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
@@ -44,6 +46,27 @@ public class SOOPConnection {
         WebSocketListener listener = new WebSocketListener(messageDispatcher);
         this.webSocketManager =
                 new WebSocketManager(config, config.getSSLContext(), scheduler, listener);
+
+        registerEnterInfoHandler(eventEmitter);
+    }
+
+    private void registerEnterInfoHandler(EventEmitter eventEmitter) {
+        if (config.isAuthenticated()) {
+            eventEmitter.once(
+                    ChatEvent.JOIN_CHANNEL,
+                    (JoinChannelEvent event) -> {
+                        String synAck = event.userFlag();
+                        if (synAck != null && !synAck.isEmpty()) {
+                            webSocketManager
+                                    .sendEnterInfo(synAck)
+                                    .exceptionally(
+                                            e -> {
+                                                LOGGER.log(Level.WARNING, "ENTER_INFO 전송 실패", e);
+                                                return null;
+                                            });
+                        }
+                    });
+        }
     }
 
     public CompletableFuture<Void> connect() {

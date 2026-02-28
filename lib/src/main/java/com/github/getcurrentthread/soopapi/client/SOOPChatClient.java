@@ -42,6 +42,7 @@ public class SOOPChatClient implements AutoCloseable {
                     .bid(config.getBid())
                     .bno(bno)
                     .sslContext(config.getSSLContext())
+                    .authCookie(config.getAuthCookie())
                     .build();
         }
         return config;

@@ -4,12 +4,15 @@ import java.time.Duration;
 
 import javax.net.ssl.SSLContext;
 
+import com.github.getcurrentthread.soopapi.api.model.AuthCookie;
+
 public class SOOPChatConfig {
     private final String bid;
     private final String bno;
     private final SSLContext sslContext;
     private final Duration connectionTimeout;
     private final int maxRetryAttempts;
+    private final AuthCookie authCookie;
 
     private static final Duration DEFAULT_CONNECTION_TIMEOUT = Duration.ofSeconds(30);
     private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 5;
@@ -20,6 +23,7 @@ public class SOOPChatConfig {
         this.sslContext = builder.sslContext;
         this.connectionTimeout = builder.connectionTimeout;
         this.maxRetryAttempts = builder.maxRetryAttempts;
+        this.authCookie = builder.authCookie;
     }
 
     /**
@@ -67,6 +71,24 @@ public class SOOPChatConfig {
         return maxRetryAttempts;
     }
 
+    /**
+     * 인증 쿠키를 반환합니다.
+     *
+     * @return 인증 쿠키 (null일 수 있음)
+     */
+    public AuthCookie getAuthCookie() {
+        return authCookie;
+    }
+
+    /**
+     * 인증된 연결인지 확인합니다.
+     *
+     * @return 인증 여부
+     */
+    public boolean isAuthenticated() {
+        return authCookie != null && authCookie.isAuthenticated();
+    }
+
     /** SOOPChatConfig 빌더 클래스 */
     public static class Builder {
         private String bid;
@@ -74,6 +96,7 @@ public class SOOPChatConfig {
         private SSLContext sslContext;
         private Duration connectionTimeout = DEFAULT_CONNECTION_TIMEOUT;
         private int maxRetryAttempts = DEFAULT_MAX_RETRY_ATTEMPTS;
+        private AuthCookie authCookie;
 
         /**
          * 방송인 ID를 설정합니다.
@@ -127,6 +150,17 @@ public class SOOPChatConfig {
          */
         public Builder maxRetryAttempts(int maxRetryAttempts) {
             this.maxRetryAttempts = maxRetryAttempts;
+            return this;
+        }
+
+        /**
+         * 인증 쿠키를 설정합니다.
+         *
+         * @param authCookie 인증 쿠키
+         * @return 빌더 인스턴스
+         */
+        public Builder authCookie(AuthCookie authCookie) {
+            this.authCookie = authCookie;
             return this;
         }
 

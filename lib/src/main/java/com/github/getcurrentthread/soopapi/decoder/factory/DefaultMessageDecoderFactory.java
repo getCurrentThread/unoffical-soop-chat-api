@@ -95,6 +95,15 @@ public class DefaultMessageDecoderFactory implements MessageDecoderFactory {
                         Map.entry(ChatEvent.EMOTICON_TICKET, new EmoticonTicketDecoder()),
                         Map.entry(ChatEvent.NONE_TYPE, new NoneTypeDecoder()),
                         Map.entry(ChatEvent.TRANSLATION_STATE, new TranslationStateDecoder()),
-                        Map.entry(ChatEvent.SET_DUMB, new SetDumbDecoder())));
+                        Map.entry(ChatEvent.SET_DUMB, new SetDumbDecoder()),
+                        Map.entry(ChatEvent.SET_BJ_STAT, new SetBjStatDecoder()),
+                        Map.entry(ChatEvent.CLUB_COLOR, new ClubColorDecoder()),
+                        Map.entry(ChatEvent.BDM_ADD_BLACK_INFO, new BdmAddBlackInfoDecoder()),
+                        Map.entry(ChatEvent.NOTI_GAME_RANKER, new NotiGameRankerDecoder()),
+                        Map.entry(ChatEvent.ITEM_SELL_EFFECT, new ItemSellEffectDecoder()),
+                        Map.entry(ChatEvent.UPDATE_TICKET, new UpdateTicketDecoder()),
+                        Map.entry(ChatEvent.TOP_CLAN, new TopClanDecoder()),
+                        Map.entry(ChatEvent.TOP_CLAN_SUB, new TopClanSubDecoder()),
+                        Map.entry(ChatEvent.VOD_ADCON, new VodAdconDecoder())));
     }
 }

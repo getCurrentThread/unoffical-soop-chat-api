@@ -153,8 +153,16 @@ public class WebSocketManager implements AutoCloseable {
         return CompletableFuture.runAsync(
                 () -> {
                     try {
+                        String authTicket = null;
+                        String uuid = null;
+                        if (config.isAuthenticated()) {
+                            authTicket = config.getAuthCookie().authTicket();
+                            uuid = config.getAuthCookie().au();
+                        }
+
                         LOGGER.info("Sending connect packet...");
-                        String connectPacket = WebSocketPacketBuilder.createConnectPacket();
+                        String connectPacket =
+                                WebSocketPacketBuilder.createConnectPacket(authTicket);
                         webSocket.sendText(connectPacket, true).join();
                         LOGGER.info("Connect packet sent successfully");
 
@@ -162,7 +170,9 @@ public class WebSocketManager implements AutoCloseable {
                         Thread.sleep(1000);
 
                         LOGGER.info("Sending join packet...");
-                        String joinPacket = WebSocketPacketBuilder.createJoinPacket(channelInfo);
+                        String joinPacket =
+                                WebSocketPacketBuilder.createJoinPacket(
+                                        channelInfo, authTicket, uuid);
                         webSocket.sendText(joinPacket, true).join();
                         LOGGER.info("Join packet sent successfully");
 
@@ -351,6 +361,16 @@ public class WebSocketManager implements AutoCloseable {
                     new IllegalStateException("WebSocket is not connected"));
         }
         String packet = WebSocketPacketBuilder.createChatPacket(message);
+        return webSocket.sendText(packet, true).thenRun(() -> {});
+    }
+
+    public CompletableFuture<Void> sendEnterInfo(String synAck) {
+        if (!isConnected() || webSocket == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("WebSocket is not connected"));
+        }
+        LOGGER.info("Sending ENTER_INFO packet...");
+        String packet = WebSocketPacketBuilder.createEnterInfoPacket(synAck);
         return webSocket.sendText(packet, true).thenRun(() -> {});
     }
 

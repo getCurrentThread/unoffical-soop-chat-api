@@ -10,6 +10,7 @@ import com.github.getcurrentthread.soopapi.decoder.message.IMessageDecoder;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.EventEmitter;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
+import com.github.getcurrentthread.soopapi.event.model.RawEvent;
 import com.github.getcurrentthread.soopapi.event.model.UnknownEvent;
 
 public class MessageDispatcher {
@@ -36,6 +37,10 @@ public class MessageDispatcher {
         messageProcessor.execute(
                 () -> {
                     try {
+                        eventEmitter.emit(
+                                ChatEvent.RAW,
+                                new RawEvent(ChatEvent.RAW, message, System.currentTimeMillis()));
+
                         String[] parts = message.split(SOOPConstants.F);
                         if (parts.length < 2) {
                             return;

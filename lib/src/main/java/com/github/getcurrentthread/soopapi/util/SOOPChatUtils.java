@@ -156,7 +156,12 @@ public class SOOPChatUtils {
                     channel.get("FTK").getAsString(),
                     channel.get("TITLE").getAsString(),
                     channel.get("BJID").getAsString(),
-                    String.valueOf(channel.get("CHPT").getAsInt() + 1));
+                    String.valueOf(channel.get("CHPT").getAsInt() + 1),
+                    channel.has("BPS") ? channel.get("BPS").getAsString() : "",
+                    channel.has("geo_cc") ? channel.get("geo_cc").getAsString() : "",
+                    channel.has("geo_rc") ? channel.get("geo_rc").getAsString() : "",
+                    channel.has("acpt_lang") ? channel.get("acpt_lang").getAsString() : "",
+                    channel.has("svc_lang") ? channel.get("svc_lang").getAsString() : "");
         } catch (SOOPChatException e) {
             throw e; // 사용자 정의 예외는 그대로 전달
         } catch (Exception e) {

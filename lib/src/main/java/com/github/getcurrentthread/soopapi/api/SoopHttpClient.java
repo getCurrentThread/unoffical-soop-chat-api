@@ -53,6 +53,22 @@ public class SoopHttpClient {
         return post(url, formData, "application/x-www-form-urlencoded");
     }
 
+    public CompletableFuture<HttpResponse<String>> postForm(
+            String url, String formData, String cookieHeader) {
+        if (cookieHeader == null || cookieHeader.isEmpty()) {
+            return postForm(url, formData);
+        }
+        HttpRequest request =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("User-Agent", USER_AGENT)
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .header("Cookie", cookieHeader)
+                        .POST(HttpRequest.BodyPublishers.ofString(formData))
+                        .build();
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+    }
+
     public CookieManager getCookieManager() {
         return cookieManager;
     }

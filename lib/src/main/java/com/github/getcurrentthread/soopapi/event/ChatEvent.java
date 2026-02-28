@@ -125,6 +125,9 @@ public enum ChatEvent {
     CHUSER_EXTEND(127, "구독자 리스트"),
     ADMIN_CHUSER_EXTEND(128, "관리자 채팅 사용자 확장"),
 
+    // ── 특수 이벤트 ──
+    RAW(-2, "원본 패킷"),
+
     // ── 알 수 없는 타입 ──
     NONE_TYPE(-1, "알 수 없는 타입");
 
