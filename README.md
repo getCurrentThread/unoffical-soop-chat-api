@@ -42,8 +42,9 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.1.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.2.0'
 }
+```
 
 ### 소스에서 빌드
 
