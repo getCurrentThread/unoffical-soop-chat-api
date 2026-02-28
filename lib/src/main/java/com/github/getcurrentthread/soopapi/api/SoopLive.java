@@ -18,6 +18,10 @@ public class SoopLive {
     private static final String PLAYER_LIVE_URL =
             "https://live.sooplive.co.kr/afreeca/player_live_api.php";
     private static final String PLAY_URL = "https://play.sooplive.co.kr/";
+    private static final Pattern BNO_PATTERN =
+            Pattern.compile(
+                    "<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.co\\.kr/m/(\\d+)\\?");
+    private static final Pattern BNO_ALT_PATTERN = Pattern.compile("\"bno\"\\s*:\\s*\"?(\\d+)\"?");
 
     private final SoopHttpClient httpClient;
 
@@ -37,17 +41,13 @@ public class SoopLive {
 
                             String body = response.body();
 
-                            Pattern pattern =
-                                    Pattern.compile(
-                                            "<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.co\\.kr/m/(\\d+)\\?");
-                            Matcher matcher = pattern.matcher(body);
+                            Matcher matcher = BNO_PATTERN.matcher(body);
 
                             if (matcher.find()) {
                                 return matcher.group(1);
                             }
 
-                            Pattern altPattern = Pattern.compile("\"bno\"\\s*:\\s*\"?(\\d+)\"?");
-                            Matcher altMatcher = altPattern.matcher(body);
+                            Matcher altMatcher = BNO_ALT_PATTERN.matcher(body);
 
                             if (altMatcher.find()) {
                                 return altMatcher.group(1);

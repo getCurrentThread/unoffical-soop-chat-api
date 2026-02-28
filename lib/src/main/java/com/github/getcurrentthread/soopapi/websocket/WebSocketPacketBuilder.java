@@ -1,15 +1,17 @@
 package com.github.getcurrentthread.soopapi.websocket;
 
-import java.nio.charset.StandardCharsets;
 import java.util.StringJoiner;
 
 import com.github.getcurrentthread.soopapi.constant.SOOPConstants;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
+import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class WebSocketPacketBuilder {
+    private static final String PING_PACKET = buildPacket("0000", SOOPConstants.F);
+
     // 주기적 연결 유지를 위한 핑 패킷 생성
     public static String createPingPacket() {
-        return buildPacket("0000", SOOPConstants.F);
+        return PING_PACKET;
     }
 
     // 초기 연결을 위한 패킷 생성 (익명)
@@ -90,15 +92,24 @@ public class WebSocketPacketBuilder {
 
     // 채팅 메시지 전송을 위한 패킷 생성
     public static String createChatPacket(String message) {
-        return buildPacket(
-                "0005",
-                String.format("%s%s%s", SOOPConstants.F, message, SOOPConstants.F.repeat(6)));
+        return buildPacket("0005", SOOPConstants.F + message + SOOPConstants.F.repeat(6));
     }
 
     // 패킷 구조 생성을 위한 유틸리티 메서드
     private static String buildPacket(String command, String data) {
-        int byteLength = data.getBytes(StandardCharsets.UTF_8).length;
-        return String.format("%s%s%06d00%s", SOOPConstants.ESC, command, byteLength, data);
+        int byteLength = SOOPChatUtils.utf8ByteLength(data);
+        String lengthStr = String.valueOf(byteLength);
+        StringBuilder sb =
+                new StringBuilder(SOOPConstants.ESC.length() + 4 + 6 + 2 + data.length());
+        sb.append(SOOPConstants.ESC);
+        sb.append(command);
+        for (int i = lengthStr.length(); i < 6; i++) {
+            sb.append('0');
+        }
+        sb.append(lengthStr);
+        sb.append("00");
+        sb.append(data);
+        return sb.toString();
     }
 
     // log 메타데이터 쿼리 문자열 생성
@@ -132,6 +143,6 @@ public class WebSocketPacketBuilder {
 
     // 패킷 길이 계산을 위한 유틸리티 메서드
     public static int calculateByteSize(String data) {
-        return data.getBytes(StandardCharsets.UTF_8).length + 6;
+        return SOOPChatUtils.utf8ByteLength(data) + 6;
     }
 }

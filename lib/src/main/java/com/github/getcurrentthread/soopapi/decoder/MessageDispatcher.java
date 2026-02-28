@@ -44,17 +44,23 @@ public class MessageDispatcher {
                                             ChatEvent.RAW, message, System.currentTimeMillis()));
                         }
 
-                        String[] parts = message.split(SOOPConstants.F);
-                        if (parts.length < 2) {
+                        int firstSep = message.indexOf(SOOPConstants.F_CHAR);
+                        if (firstSep < 0) {
                             return;
                         }
 
-                        int serviceCode = parseServiceCode(parts[0]);
+                        String header = message.substring(0, firstSep);
+                        int serviceCode = parseServiceCode(header);
                         ChatEvent chatEvent = ChatEvent.fromCode(serviceCode);
+
+                        if (!eventEmitter.hasListeners(chatEvent)) {
+                            return;
+                        }
+
                         IMessageDecoder decoder = messageDecoders.get(chatEvent);
 
-                        String[] messageParts = new String[parts.length - 1];
-                        System.arraycopy(parts, 1, messageParts, 0, parts.length - 1);
+                        String[] messageParts =
+                                message.substring(firstSep + 1).split(SOOPConstants.F);
 
                         BaseEvent event;
                         if (decoder != null) {
@@ -73,7 +79,13 @@ public class MessageDispatcher {
                             eventEmitter.emit(chatEvent, event);
                         }
                     } catch (Exception e) {
-                        LOGGER.log(Level.WARNING, "Error processing message: " + message, e);
+                        if (LOGGER.isLoggable(Level.WARNING)) {
+                            String truncated =
+                                    message.length() > 200
+                                            ? message.substring(0, 200) + "..."
+                                            : message;
+                            LOGGER.log(Level.WARNING, "Error processing message: " + truncated, e);
+                        }
                     }
                 });
     }

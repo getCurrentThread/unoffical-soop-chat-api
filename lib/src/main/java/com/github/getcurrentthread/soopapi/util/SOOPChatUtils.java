@@ -20,6 +20,14 @@ public class SOOPChatUtils {
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
     private static final int CONNECTION_TIMEOUT_SECONDS = 15;
+    private static final HttpClient HTTP_CLIENT =
+            HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(CONNECTION_TIMEOUT_SECONDS))
+                    .build();
+    private static final Pattern BNO_PATTERN =
+            Pattern.compile(
+                    "<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.co\\.kr/m/(\\d+)\\?");
+    private static final Pattern BNO_ALT_PATTERN = Pattern.compile("\"bno\"\\s*:\\s*\"?(\\d+)\"?");
 
     private SOOPChatUtils() {}
 
@@ -31,12 +39,6 @@ public class SOOPChatUtils {
      * @throws SOOPChatException API 요청 중 오류가 발생한 경우
      */
     public static String getBnoFromBid(String bid) {
-        // HTTP 클라이언트 생성 - 타임아웃 설정 추가
-        HttpClient client =
-                HttpClient.newBuilder()
-                        .connectTimeout(java.time.Duration.ofSeconds(CONNECTION_TIMEOUT_SECONDS))
-                        .build();
-
         HttpRequest request =
                 HttpRequest.newBuilder()
                         .uri(URI.create("https://play.sooplive.co.kr/" + bid))
@@ -46,7 +48,7 @@ public class SOOPChatUtils {
 
         try {
             HttpResponse<String> response =
-                    client.send(request, HttpResponse.BodyHandlers.ofString());
+                    HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
                 throw new SOOPChatException("HTTP 요청 실패. 상태 코드: " + response.statusCode());
@@ -54,17 +56,13 @@ public class SOOPChatUtils {
 
             String responseBody = response.body();
 
-            Pattern pattern =
-                    Pattern.compile(
-                            "<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.co\\.kr/m/(\\d+)\\?");
-            Matcher matcher = pattern.matcher(responseBody);
+            Matcher matcher = BNO_PATTERN.matcher(responseBody);
 
             if (matcher.find()) {
                 return matcher.group(1);
             } else {
                 // 다른 패턴 시도 (SOOP 사이트가 변경되었을 수 있음)
-                Pattern altPattern = Pattern.compile("\"bno\"\\s*:\\s*\"?(\\d+)\"?");
-                Matcher altMatcher = altPattern.matcher(responseBody);
+                Matcher altMatcher = BNO_ALT_PATTERN.matcher(responseBody);
 
                 if (altMatcher.find()) {
                     return altMatcher.group(1);
@@ -95,12 +93,6 @@ public class SOOPChatUtils {
                         "bid=%s&bno=%s&type=live&confirm_adult=false&player_type=html5&mode=landing&from_api=0&pwd=&stream_type=common&quality=HD",
                         bid, bno);
 
-        // HTTP 클라이언트 생성 - 타임아웃 설정 추가
-        HttpClient client =
-                HttpClient.newBuilder()
-                        .connectTimeout(java.time.Duration.ofSeconds(CONNECTION_TIMEOUT_SECONDS))
-                        .build();
-
         HttpRequest request =
                 HttpRequest.newBuilder()
                         .uri(URI.create(url + "?bjid=" + bid))
@@ -111,7 +103,7 @@ public class SOOPChatUtils {
 
         try {
             HttpResponse<String> response =
-                    client.send(request, HttpResponse.BodyHandlers.ofString());
+                    HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
                 throw new SOOPChatException(
@@ -190,7 +182,26 @@ public class SOOPChatUtils {
      * @return 바이트 크기
      */
     public static int calculateByteSize(String string) {
-        return string.getBytes().length + 6;
+        return utf8ByteLength(string) + 6;
+    }
+
+    /** 바이트 배열 할당 없이 UTF-8 바이트 길이를 계산합니다. */
+    public static int utf8ByteLength(String s) {
+        int count = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c <= 0x7F) {
+                count++;
+            } else if (c <= 0x7FF) {
+                count += 2;
+            } else if (Character.isHighSurrogate(c)) {
+                count += 4;
+                i++;
+            } else {
+                count += 3;
+            }
+        }
+        return count;
     }
 
     /**

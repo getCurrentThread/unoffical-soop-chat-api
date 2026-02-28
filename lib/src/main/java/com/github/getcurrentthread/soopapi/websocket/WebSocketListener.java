@@ -2,6 +2,7 @@ package com.github.getcurrentthread.soopapi.websocket;
 
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Level;
@@ -11,8 +12,9 @@ import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
 
 public class WebSocketListener implements WebSocket.Listener {
     private static final Logger LOGGER = Logger.getLogger(WebSocketListener.class.getName());
+    private static final int DEFAULT_BUFFER_SIZE = 16384;
     private final MessageDispatcher messageDispatcher;
-    private ByteBuffer buffer = ByteBuffer.allocate(16384);
+    private ByteBuffer buffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
 
     public WebSocketListener(MessageDispatcher messageDispatcher) {
         this.messageDispatcher = messageDispatcher;
@@ -27,16 +29,15 @@ public class WebSocketListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-        byte[] bytes = data.toString().getBytes(StandardCharsets.UTF_8);
-        return onBinary(webSocket, ByteBuffer.wrap(bytes), last);
+        ByteBuffer encoded = StandardCharsets.UTF_8.encode(CharBuffer.wrap(data));
+        return onBinary(webSocket, encoded, last);
     }
 
     @Override
     public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
         try {
-
             if (buffer.remaining() < data.remaining()) {
-                int newSize = buffer.capacity() + data.remaining();
+                int newSize = buffer.position() + data.remaining();
                 ByteBuffer newBuffer = ByteBuffer.allocate(newSize);
                 buffer.flip();
                 newBuffer.put(buffer);
@@ -55,11 +56,10 @@ public class WebSocketListener implements WebSocket.Listener {
                     messageDispatcher.dispatchMessage(message);
                 }
 
-                buffer = ByteBuffer.allocate(16384);
+                buffer.clear();
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error processing binary message", e);
-            e.printStackTrace();
         }
 
         webSocket.request(1);
