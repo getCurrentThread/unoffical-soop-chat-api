@@ -68,4 +68,9 @@ public class EventEmitter {
     public void clear(ChatEvent event) {
         listeners.remove(event);
     }
+
+    public boolean hasListeners(ChatEvent event) {
+        List<EventListener<? extends BaseEvent>> list = listeners.get(event);
+        return list != null && !list.isEmpty();
+    }
 }

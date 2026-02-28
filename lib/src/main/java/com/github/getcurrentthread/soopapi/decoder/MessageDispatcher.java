@@ -37,9 +37,12 @@ public class MessageDispatcher {
         messageProcessor.execute(
                 () -> {
                     try {
-                        eventEmitter.emit(
-                                ChatEvent.RAW,
-                                new RawEvent(ChatEvent.RAW, message, System.currentTimeMillis()));
+                        if (eventEmitter.hasListeners(ChatEvent.RAW)) {
+                            eventEmitter.emit(
+                                    ChatEvent.RAW,
+                                    new RawEvent(
+                                            ChatEvent.RAW, message, System.currentTimeMillis()));
+                        }
 
                         String[] parts = message.split(SOOPConstants.F);
                         if (parts.length < 2) {
