@@ -92,6 +92,7 @@ public class DefaultMessageDecoderFactory implements MessageDecoderFactory {
                         Map.entry(ChatEvent.SET_CHANNEL_NAME, new SetChannelNameDecoder()),
                         Map.entry(ChatEvent.BJ_STICKER_ITEM, new BJStickerItemDecoder()),
                         Map.entry(ChatEvent.STATION_ADCON, new StationAdconDecoder()),
+                        Map.entry(ChatEvent.EMOTICON_TICKET, new EmoticonTicketDecoder()),
                         Map.entry(ChatEvent.NONE_TYPE, new NoneTypeDecoder()),
                         Map.entry(ChatEvent.TRANSLATION_STATE, new TranslationStateDecoder()),
                         Map.entry(ChatEvent.SET_DUMB, new SetDumbDecoder())));
