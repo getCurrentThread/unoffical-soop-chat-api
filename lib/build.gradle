@@ -1,7 +1,11 @@
 plugins {
     id 'java-library'
+    id 'maven-publish'
     id 'com.diffplug.spotless' version '8.2.1'
 }
+
+group = 'com.github.getCurrentThread'
+version = rootProject.findProperty('version') ?: '0.0.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -31,6 +35,23 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            groupId = 'com.github.getCurrentThread'
+            artifactId = 'soopapi'
+        }
+    }
+}
+
+tasks.withType(Javadoc) {
+    options.addBooleanOption('-enable-preview', true)
+    options.addStringOption('source', '25')
 }
 
 tasks.withType(JavaCompile) {

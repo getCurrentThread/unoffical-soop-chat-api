@@ -31,6 +31,24 @@
 
 ## 설치
 
+### Gradle (JitPack)
+
+```groovy
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    implementation 'com.github.getCurrentThread:soopapi:TAG'
+}
+```
+
+> `TAG`을 원하는 릴리스 태그(예: `v1.0.0`) 또는 커밋 해시로 교체하세요.
+
+[![](https://jitpack.io/v/getCurrentThread/soopapi.svg)](https://jitpack.io/#getCurrentThread/soopapi)
+
+### 소스에서 빌드
+
 1. 저장소 복제:
 
    ```
