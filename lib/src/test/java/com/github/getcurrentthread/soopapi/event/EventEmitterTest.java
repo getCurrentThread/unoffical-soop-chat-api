@@ -11,7 +11,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.github.getcurrentthread.soopapi.event.model.ChatMessageEvent;
+import com.github.getcurrentthread.soopapi.event.model.DisconnectedEvent;
 import com.github.getcurrentthread.soopapi.event.model.UnknownEvent;
+import com.github.getcurrentthread.soopapi.exception.EventEmitterException;
 
 public class EventEmitterTest {
 
@@ -226,5 +228,74 @@ public class EventEmitterTest {
                         .on(ChatEvent.JOIN_CHANNEL, e -> {});
 
         assertSame(emitter, result, "Method chaining should return same emitter");
+    }
+
+    @Test
+    public void testErrorHandler() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<EventEmitterException> captured = new AtomicReference<>();
+
+        emitter.setErrorHandler(
+                ex -> {
+                    captured.set(ex);
+                    latch.countDown();
+                });
+
+        emitter.on(
+                ChatEvent.CHAT_MESSAGE,
+                (ChatMessageEvent e) -> {
+                    throw new RuntimeException("test error");
+                });
+
+        ChatMessageEvent event =
+                new ChatMessageEvent(
+                        "msg",
+                        "u",
+                        0,
+                        0,
+                        "n",
+                        "0",
+                        "0",
+                        "",
+                        "",
+                        ChatEvent.CHAT_MESSAGE,
+                        "raw",
+                        System.currentTimeMillis());
+
+        emitter.emit(ChatEvent.CHAT_MESSAGE, event);
+
+        assertTrue(latch.await(1, TimeUnit.SECONDS), "Error handler should be called");
+        assertNotNull(captured.get());
+        assertEquals(ChatEvent.CHAT_MESSAGE, captured.get().getChatEvent());
+        assertInstanceOf(RuntimeException.class, captured.get().getCause());
+    }
+
+    @Test
+    public void testDisconnectedEventEmission() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DisconnectedEvent> received = new AtomicReference<>();
+
+        emitter.on(
+                ChatEvent.DISCONNECTED,
+                (DisconnectedEvent e) -> {
+                    received.set(e);
+                    latch.countDown();
+                });
+
+        DisconnectedEvent event =
+                new DisconnectedEvent(
+                        1000,
+                        "normal close",
+                        false,
+                        ChatEvent.DISCONNECTED,
+                        "",
+                        System.currentTimeMillis());
+
+        emitter.emit(ChatEvent.DISCONNECTED, event);
+
+        assertTrue(latch.await(1, TimeUnit.SECONDS), "DISCONNECTED event should be received");
+        assertEquals(1000, received.get().statusCode());
+        assertEquals("normal close", received.get().reason());
+        assertFalse(received.get().causedByError());
     }
 }

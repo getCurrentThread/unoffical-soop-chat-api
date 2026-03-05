@@ -2,23 +2,27 @@ package com.github.getcurrentthread.soopapi.websocket;
 
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
+import com.github.getcurrentthread.soopapi.event.ChatEvent;
+import com.github.getcurrentthread.soopapi.event.EventEmitter;
+import com.github.getcurrentthread.soopapi.event.model.DisconnectedEvent;
 
 public class WebSocketListener implements WebSocket.Listener {
     private static final Logger LOGGER = Logger.getLogger(WebSocketListener.class.getName());
-    private static final int DEFAULT_BUFFER_SIZE = 16384;
+    static final int DEFAULT_BUFFER_SIZE = 16384;
     private final MessageDispatcher messageDispatcher;
-    private ByteBuffer buffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
+    private final EventEmitter eventEmitter;
+    private final StringBuilder textBuffer = new StringBuilder(DEFAULT_BUFFER_SIZE);
 
-    public WebSocketListener(MessageDispatcher messageDispatcher) {
-        this.messageDispatcher = messageDispatcher;
-        LOGGER.info("WebSocketListener initialized with dispatcher: " + messageDispatcher);
+    public WebSocketListener(MessageDispatcher messageDispatcher, EventEmitter eventEmitter) {
+        this.messageDispatcher = Objects.requireNonNull(messageDispatcher, "messageDispatcher");
+        this.eventEmitter = Objects.requireNonNull(eventEmitter, "eventEmitter");
+        LOGGER.fine(() -> "WebSocketListener initialized with dispatcher: " + messageDispatcher);
     }
 
     @Override
@@ -29,39 +33,30 @@ public class WebSocketListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-        ByteBuffer encoded = StandardCharsets.UTF_8.encode(CharBuffer.wrap(data));
-        return onBinary(webSocket, encoded, last);
+        try {
+            textBuffer.append(data);
+
+            if (last) {
+                String message = textBuffer.toString();
+                messageDispatcher.dispatchMessage(message);
+
+                textBuffer.setLength(0);
+                if (textBuffer.capacity() > DEFAULT_BUFFER_SIZE * 4) {
+                    textBuffer.trimToSize();
+                    textBuffer.ensureCapacity(DEFAULT_BUFFER_SIZE);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error processing text message", e);
+        }
+
+        webSocket.request(1);
+        return null;
     }
 
     @Override
     public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
-        try {
-            if (buffer.remaining() < data.remaining()) {
-                int newSize = buffer.position() + data.remaining();
-                ByteBuffer newBuffer = ByteBuffer.allocate(newSize);
-                buffer.flip();
-                newBuffer.put(buffer);
-                buffer = newBuffer;
-            }
-
-            buffer.put(data);
-
-            if (last) {
-                buffer.flip();
-                String message = StandardCharsets.UTF_8.decode(buffer).toString();
-
-                if (messageDispatcher == null) {
-                    LOGGER.severe("MessageDispatcher is null!");
-                } else {
-                    messageDispatcher.dispatchMessage(message);
-                }
-
-                buffer.clear();
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error processing binary message", e);
-        }
-
+        LOGGER.warning("Received unexpected binary frame");
         webSocket.request(1);
         return null;
     }
@@ -81,11 +76,31 @@ public class WebSocketListener implements WebSocket.Listener {
     @Override
     public void onError(WebSocket webSocket, Throwable error) {
         LOGGER.log(Level.SEVERE, "WebSocket error", error);
-        error.printStackTrace();
+        String errorMessage =
+                error.getMessage() != null ? error.getMessage() : error.getClass().getName();
+        eventEmitter.emit(
+                ChatEvent.DISCONNECTED,
+                new DisconnectedEvent(
+                        -1,
+                        errorMessage,
+                        true,
+                        ChatEvent.DISCONNECTED,
+                        "",
+                        System.currentTimeMillis()));
     }
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+        LOGGER.info("WebSocket closed: statusCode=" + statusCode + ", reason=" + reason);
+        eventEmitter.emit(
+                ChatEvent.DISCONNECTED,
+                new DisconnectedEvent(
+                        statusCode,
+                        reason,
+                        false,
+                        ChatEvent.DISCONNECTED,
+                        "",
+                        System.currentTimeMillis()));
         return null;
     }
 }

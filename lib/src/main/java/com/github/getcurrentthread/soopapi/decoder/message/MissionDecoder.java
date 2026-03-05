@@ -8,9 +8,21 @@ import com.github.getcurrentthread.soopapi.event.model.MissionEvent;
 import com.github.getcurrentthread.soopapi.util.GsonUtil;
 
 public class MissionDecoder implements IMessageDecoder {
+    private static final int MIN_PARTS = 1;
+
     @Override
     public BaseEvent decode(String[] parts, String raw) {
-        Map<String, Object> data = GsonUtil.fromJson(parts[0]);
-        return new MissionEvent(data, ChatEvent.MISSION, raw, System.currentTimeMillis());
+        if (parts.length < MIN_PARTS) {
+            return null;
+        }
+        try {
+            Map<String, Object> data = GsonUtil.fromJson(parts[0]);
+            if (data == null) {
+                return null;
+            }
+            return new MissionEvent(data, ChatEvent.MISSION, raw, System.currentTimeMillis());
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

@@ -9,19 +9,25 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
-public class SoopHttpClient {
+public class SOOPHttpClient implements AutoCloseable {
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(15);
 
     private final HttpClient httpClient;
     private final CookieManager cookieManager;
+    private final Duration connectionTimeout;
 
-    public SoopHttpClient() {
-        this.cookieManager = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+    public SOOPHttpClient() {
+        this(DEFAULT_TIMEOUT);
+    }
+
+    public SOOPHttpClient(Duration connectionTimeout) {
+        this.connectionTimeout = connectionTimeout != null ? connectionTimeout : DEFAULT_TIMEOUT;
+        this.cookieManager = new CookieManager(null, CookiePolicy.ACCEPT_ORIGINAL_SERVER);
         this.httpClient =
                 HttpClient.newBuilder()
-                        .connectTimeout(DEFAULT_TIMEOUT)
+                        .connectTimeout(this.connectionTimeout)
                         .cookieHandler(cookieManager)
                         .followRedirects(HttpClient.Redirect.NORMAL)
                         .build();
@@ -33,6 +39,7 @@ public class SoopHttpClient {
                         .uri(URI.create(url))
                         .GET()
                         .header("User-Agent", USER_AGENT)
+                        .timeout(connectionTimeout)
                         .build();
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
     }
@@ -45,6 +52,7 @@ public class SoopHttpClient {
                         .header("User-Agent", USER_AGENT)
                         .header("Content-Type", contentType)
                         .POST(HttpRequest.BodyPublishers.ofString(body))
+                        .timeout(connectionTimeout)
                         .build();
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
     }
@@ -65,6 +73,7 @@ public class SoopHttpClient {
                         .header("Content-Type", "application/x-www-form-urlencoded")
                         .header("Cookie", cookieHeader)
                         .POST(HttpRequest.BodyPublishers.ofString(formData))
+                        .timeout(connectionTimeout)
                         .build();
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
     }
@@ -75,5 +84,10 @@ public class SoopHttpClient {
 
     public HttpClient getHttpClient() {
         return httpClient;
+    }
+
+    @Override
+    public void close() {
+        httpClient.close();
     }
 }

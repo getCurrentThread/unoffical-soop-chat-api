@@ -8,6 +8,7 @@ import java.util.logging.Logger;
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.event.EventEmitter;
 import com.github.getcurrentthread.soopapi.exception.ConnectionException;
+import com.github.getcurrentthread.soopapi.model.ConnectionStatus;
 
 public class ConnectionManager {
     private static final Logger LOGGER = Logger.getLogger(ConnectionManager.class.getName());
@@ -16,6 +17,7 @@ public class ConnectionManager {
     private final ExecutorService messageProcessorPool;
     private final ScheduledExecutorService sharedScheduler;
     private final Map<String, SOOPConnection> connections;
+    private volatile boolean isShutdown;
 
     private ConnectionManager() {
         this.messageProcessorPool = Executors.newVirtualThreadPerTaskExecutor();
@@ -30,6 +32,25 @@ public class ConnectionManager {
                         });
 
         this.connections = new ConcurrentHashMap<>();
+
+        Runtime.getRuntime()
+                .addShutdownHook(
+                        new Thread(
+                                () -> {
+                                    for (SOOPConnection conn : connections.values()) {
+                                        try {
+                                            conn.disconnect();
+                                        } catch (Exception e) {
+                                            LOGGER.log(
+                                                    Level.WARNING,
+                                                    "Error disconnecting during shutdown",
+                                                    e);
+                                        }
+                                    }
+                                    connections.clear();
+                                    shutdownExecutors();
+                                },
+                                "SOOP-ShutdownHook"));
     }
 
     public static ConnectionManager getInstance() {
@@ -38,27 +59,33 @@ public class ConnectionManager {
 
     public CompletableFuture<SOOPConnection> connect(
             SOOPChatConfig config, EventEmitter eventEmitter) {
+        if (isShutdown) {
+            return CompletableFuture.failedFuture(
+                    new ConnectionException(
+                            "ConnectionManager has been shut down and cannot accept new connections"));
+        }
         String bid = config.getBid();
 
         return CompletableFuture.supplyAsync(
                 () -> {
+                    SOOPConnection connection =
+                            connections.computeIfAbsent(
+                                    bid,
+                                    _ ->
+                                            new SOOPConnection(
+                                                    config,
+                                                    messageProcessorPool,
+                                                    sharedScheduler,
+                                                    eventEmitter));
                     try {
-                        SOOPConnection connection =
-                                connections.computeIfAbsent(
-                                        bid,
-                                        _ ->
-                                                new SOOPConnection(
-                                                        config,
-                                                        messageProcessorPool,
-                                                        sharedScheduler,
-                                                        eventEmitter));
-
                         connection.connect().join();
                         return connection;
                     } catch (Exception e) {
-                        LOGGER.log(Level.SEVERE, "연결 실패: " + bid, e);
+                        connections.computeIfPresent(
+                                bid, (_, conn) -> conn.isConnected() ? conn : null);
+                        LOGGER.log(Level.SEVERE, "Connection failed: " + bid, e);
                         throw new CompletionException(
-                                new ConnectionException("채널에 연결할 수 없습니다: " + bid, e));
+                                new ConnectionException("Cannot connect to channel: " + bid, e));
                     }
                 },
                 messageProcessorPool);
@@ -96,6 +123,7 @@ public class ConnectionManager {
     }
 
     public CompletableFuture<Void> shutdown() {
+        isShutdown = true;
         return CompletableFuture.runAsync(
                 () -> {
                     try (var scope = StructuredTaskScope.open()) {
@@ -111,26 +139,26 @@ public class ConnectionManager {
                         scope.join();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        LOGGER.log(Level.WARNING, "종료 중 인터럽트 발생", e);
+                        LOGGER.log(Level.WARNING, "Interrupted during shutdown", e);
                     }
                     connections.clear();
-
-                    messageProcessorPool.shutdown();
-                    sharedScheduler.shutdown();
-
-                    try {
-                        if (!messageProcessorPool.awaitTermination(5, TimeUnit.SECONDS)) {
-                            messageProcessorPool.shutdownNow();
-                        }
-                        if (!sharedScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                            sharedScheduler.shutdownNow();
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        LOGGER.log(Level.WARNING, "종료 중 인터럽트 발생", e);
-                    }
+                    shutdownExecutors();
                 });
     }
 
-    public record ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {}
+    private void shutdownExecutors() {
+        messageProcessorPool.shutdown();
+        sharedScheduler.shutdown();
+        try {
+            if (!messageProcessorPool.awaitTermination(5, TimeUnit.SECONDS)) {
+                messageProcessorPool.shutdownNow();
+            }
+            if (!sharedScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                sharedScheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.log(Level.WARNING, "Interrupted during shutdown", e);
+        }
+    }
 }

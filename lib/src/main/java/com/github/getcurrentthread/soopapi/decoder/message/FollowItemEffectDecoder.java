@@ -3,16 +3,22 @@ package com.github.getcurrentthread.soopapi.decoder.message;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.event.model.FollowItemEffectEvent;
+import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class FollowItemEffectDecoder implements IMessageDecoder {
+    private static final int MIN_PARTS = 5;
+
     @Override
     public BaseEvent decode(String[] parts, String raw) {
+        if (parts.length < MIN_PARTS) {
+            return null;
+        }
         return new FollowItemEffectEvent(
                 parts[0],
                 parts[1],
                 parts[2],
-                Integer.parseInt(parts[3]),
-                Integer.parseInt(parts[4]),
+                SOOPChatUtils.safeParseInt(parts[3], 0),
+                SOOPChatUtils.safeParseInt(parts[4], 0),
                 ChatEvent.FOLLOW_ITEM_EFFECT,
                 raw,
                 System.currentTimeMillis());

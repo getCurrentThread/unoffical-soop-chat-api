@@ -11,7 +11,7 @@ public class KickUserListDecoder implements IMessageDecoder {
     @Override
     public BaseEvent decode(String[] parts, String raw) {
         List<KickUserListEvent.KickedUser> kickedUsers = new ArrayList<>();
-        for (int i = 0; i < parts.length; i += 6) {
+        for (int i = 0; i + 6 <= parts.length; i += 6) {
             kickedUsers.add(
                     new KickUserListEvent.KickedUser(
                             parts[i],

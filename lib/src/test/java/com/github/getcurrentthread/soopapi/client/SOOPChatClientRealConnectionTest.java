@@ -95,15 +95,15 @@ class SOOPChatClientRealConnectionTest {
     @Test
     void testTop10RealConnection() throws Exception {
         // === 1단계: 방송 목록 fetch & 상위 10개 추출 ===
-        logger.info("=== 방송 목록 가져오는 중 ===");
+        logger.info("=== Fetching broadcast list ===");
 
         List<Map<String, Object>> topStreamers = fetchTopStreamers();
-        logger.info("=== 테스트 대상 스트리머 (" + topStreamers.size() + "명) ===");
+        logger.info("=== Target streamers (" + topStreamers.size() + ") ===");
         for (int i = 0; i < topStreamers.size(); i++) {
             var s = topStreamers.get(i);
             logger.info(
                     String.format(
-                            "#%d BID=%s, BNO=%s, 닉네임=%s, 시청자=%s",
+                            "#%d BID=%s, BNO=%s, nickname=%s, viewers=%s",
                             i + 1,
                             s.get("user_id"),
                             s.get("broad_no"),
@@ -149,7 +149,7 @@ class SOOPChatClientRealConnectionTest {
         }
 
         // === 3단계: 동시 연결 (Virtual Thread) ===
-        logger.info("=== 동시 연결 시작 ===");
+        logger.info("=== Starting concurrent connections ===");
         AtomicInteger connectedCount = new AtomicInteger(0);
 
         @SuppressWarnings("unchecked")
@@ -166,11 +166,11 @@ class SOOPChatClientRealConnectionTest {
                                         try {
                                             client.connectToChat().get(30, TimeUnit.SECONDS);
                                             connectedCount.incrementAndGet();
-                                            logger.info("[" + bid + "] 연결 성공");
+                                            logger.info("[" + bid + "] Connected");
                                         } catch (Exception e) {
                                             logger.log(
                                                     Level.WARNING,
-                                                    "[" + bid + "] 연결 실패: " + e.getMessage(),
+                                                    "[" + bid + "] Connection failed: " + e.getMessage(),
                                                     e);
                                         }
                                     },
@@ -180,24 +180,24 @@ class SOOPChatClientRealConnectionTest {
                                     ex -> {
                                         logger.log(
                                                 Level.WARNING,
-                                                "[" + bids.get(idx) + "] 연결 타임아웃",
+                                                "[" + bids.get(idx) + "] Connection timeout",
                                                 ex);
                                         return null;
                                     });
         }
 
         CompletableFuture.allOf(futures).join();
-        logger.info("=== 연결 완료: " + connectedCount.get() + "/" + clients.size() + " 성공 ===");
+        logger.info("=== Connection complete: " + connectedCount.get() + "/" + clients.size() + " succeeded ===");
 
-        assertTrue(connectedCount.get() >= 5, "최소 5개 이상 연결 필요, 실제: " + connectedCount.get());
+        assertTrue(connectedCount.get() >= 5, "At least 5 connections required, actual: " + connectedCount.get());
 
         // === 4단계: 최대 3분 또는 30개 이벤트까지 대기 (10초마다 상태 확인) ===
         logger.info(
-                "=== 모니터링 시작 (최대 "
+                "=== Monitoring started (max "
                         + TEST_DURATION_MINUTES
-                        + "분, "
+                        + " min, "
                         + MAX_TOTAL_EVENTS
-                        + "개 이벤트) ===");
+                        + " events) ===");
 
         long deadline = System.currentTimeMillis() + TEST_DURATION_MINUTES * 60_000L;
         int logIntervalSec = 0;
@@ -208,14 +208,14 @@ class SOOPChatClientRealConnectionTest {
             long activeClients = clients.stream().filter(SOOPChatClient::isConnected).count();
             logger.info(
                     String.format(
-                            "=== [%d초 경과] 연결 클라이언트: %d, 총 수신 이벤트: %d ===",
+                            "=== [%ds elapsed] Connected clients: %d, Total events received: %d ===",
                             logIntervalSec, activeClients, totalEvents.get()));
         }
 
-        logger.info("모니터링 종료 - 총 수신 이벤트: " + totalEvents.get());
+        logger.info("Monitoring ended - Total events received: " + totalEvents.get());
 
         // === 5단계: 정리 & 통계 ===
-        logger.info("=== 최종 통계 ===");
+        logger.info("=== Final statistics ===");
         for (String bid : bids) {
             long chatCount = getCount(bid, "CHAT_MESSAGE");
             long totalForBid =
@@ -223,9 +223,9 @@ class SOOPChatClientRealConnectionTest {
                             .filter(e -> e.getKey().startsWith(bid + ":"))
                             .mapToLong(e -> e.getValue().get())
                             .sum();
-            logger.info(String.format("[%s] 총 이벤트: %d, 채팅 메시지: %d", bid, totalForBid, chatCount));
+            logger.info(String.format("[%s] Total events: %d, Chat messages: %d", bid, totalForBid, chatCount));
         }
-        logger.info("총 수신 이벤트: " + totalEvents.get());
+        logger.info("Total events received: " + totalEvents.get());
 
         // === 6단계: 파싱 검증 리포트 생성 ===
         generateParsingReport();
@@ -235,11 +235,11 @@ class SOOPChatClientRealConnectionTest {
             try {
                 client.disconnect();
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Disconnect 오류", e);
+                logger.log(Level.WARNING, "Disconnect error", e);
             }
         }
 
-        logger.info("=== 테스트 완료 ===");
+        logger.info("=== Test complete ===");
     }
 
     @SuppressWarnings("unchecked")
@@ -262,10 +262,10 @@ class SOOPChatClientRealConnectionTest {
 
         List<Map<String, Object>> broads = (List<Map<String, Object>>) json.get("broad");
         if (broads == null || broads.isEmpty()) {
-            throw new RuntimeException("방송 목록을 가져올 수 없습니다 (broad 배열 없음)");
+            throw new RuntimeException("Cannot fetch broadcast list (no broad array)");
         }
 
-        logger.info("전체 방송 수: " + broads.size());
+        logger.info("Total broadcasts: " + broads.size());
 
         broads.sort(
                 Comparator.comparingInt(
@@ -289,8 +289,7 @@ class SOOPChatClientRealConnectionTest {
                             + "] SEND_BALLOON: "
                             + balloon.senderNickname()
                             + " → "
-                            + balloon.count()
-                            + "개";
+                            + balloon.count();
             default -> {
                 String raw = event.raw();
                 String summary = (raw != null && raw.length() > 100) ? raw.substring(0, 100) : raw;
@@ -418,7 +417,7 @@ class SOOPChatClientRealConnectionTest {
                 results.add(checkNonNullString("originalMessage", e.originalMessage()));
             }
             default -> {
-                // base fields already checked; WARN for unhandled type
+                // 기본 필드는 이미 검증 완료; 처리되지 않은 타입에 대해 WARN
             }
         }
         return results;
@@ -482,7 +481,7 @@ class SOOPChatClientRealConnectionTest {
 
     private static void generateParsingReport() {
         Path reportPath = Path.of(LOG_DIR, "parsing-report.log");
-        logger.info("=== 6단계: 파싱 검증 리포트 생성 ===");
+        logger.info("=== Step 6: Generating parsing validation report ===");
 
         Map<String, int[]> summaryMap = new TreeMap<>();
         int totalOk = 0, totalWarn = 0, totalFail = 0;
@@ -501,7 +500,7 @@ class SOOPChatClientRealConnectionTest {
             for (var entry : sortedEntries) {
                 ChatEvent eventType = entry.getKey();
                 List<BaseEvent> samples = entry.getValue();
-                int[] counts = {0, 0, 0}; // ok, warn, fail
+                int[] counts = {0, 0, 0}; // 성공, 경고, 실패
 
                 pw.printf(
                         "--- %s (%s) - %d samples ---%n",
@@ -552,12 +551,12 @@ class SOOPChatClientRealConnectionTest {
             pw.printf("%-30s %5d %6d %6d%n", "TOTAL", totalOk, totalWarn, totalFail);
             pw.println();
 
-            logger.info("파싱 리포트 생성 완료: " + reportPath.toAbsolutePath());
+            logger.info("Parsing report generated: " + reportPath.toAbsolutePath());
             logger.info(
                     String.format(
                             "SUMMARY - OK: %d, WARN: %d, FAIL: %d", totalOk, totalWarn, totalFail));
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "파싱 리포트 생성 실패", e);
+            logger.log(Level.SEVERE, "Failed to generate parsing report", e);
         }
     }
 

@@ -1,34 +1,43 @@
 package com.github.getcurrentthread.soopapi.connection;
 
+import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.github.getcurrentthread.soopapi.api.SOOPHttpClient;
+import com.github.getcurrentthread.soopapi.api.SOOPLive;
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.decoder.MessageDispatcher;
 import com.github.getcurrentthread.soopapi.decoder.factory.DefaultMessageDecoderFactory;
+import com.github.getcurrentthread.soopapi.decoder.message.IMessageDecoder;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.EventEmitter;
 import com.github.getcurrentthread.soopapi.event.model.JoinChannelEvent;
-import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.exception.ConnectionException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
+import com.github.getcurrentthread.soopapi.model.ConnectionStatus;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 import com.github.getcurrentthread.soopapi.websocket.WebSocketListener;
 import com.github.getcurrentthread.soopapi.websocket.WebSocketManager;
 
-public class SOOPConnection {
+public class SOOPConnection implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(SOOPConnection.class.getName());
+    private static final Map<ChatEvent, IMessageDecoder> SHARED_DECODERS =
+            new DefaultMessageDecoderFactory().createDecoders();
 
     private final SOOPChatConfig config;
     private final ExecutorService executor;
+    private final SOOPHttpClient httpClient;
+    private final SOOPLive soopLive;
     private final MessageDispatcher messageDispatcher;
     private final WebSocketManager webSocketManager;
+    private final ReentrantLock connectionLock = new ReentrantLock();
 
-    private ChannelInfo channelInfo;
+    private volatile ChannelInfo channelInfo;
     private volatile boolean isConnected;
     private volatile boolean isReconnecting;
-    private final Object connectionLock = new Object();
 
     public SOOPConnection(
             SOOPChatConfig config,
@@ -37,32 +46,38 @@ public class SOOPConnection {
             EventEmitter eventEmitter) {
         this.config = config;
         this.executor = messageProcessor;
+        this.httpClient = new SOOPHttpClient(config.getConnectionTimeout());
+        this.soopLive = new SOOPLive(httpClient);
 
         this.messageDispatcher =
-                new MessageDispatcher(
-                        new DefaultMessageDecoderFactory().createDecoders(),
-                        messageProcessor,
-                        eventEmitter);
+                new MessageDispatcher(SHARED_DECODERS, messageProcessor, eventEmitter);
 
-        WebSocketListener listener = new WebSocketListener(messageDispatcher);
+        WebSocketListener listener = new WebSocketListener(messageDispatcher, eventEmitter);
         this.webSocketManager =
-                new WebSocketManager(config, config.getSSLContext(), scheduler, listener);
+                new WebSocketManager(
+                        config, config.getSSLContext(), scheduler, listener, eventEmitter);
 
         registerEnterInfoHandler(eventEmitter);
     }
 
     private void registerEnterInfoHandler(EventEmitter eventEmitter) {
         if (config.isAuthenticated()) {
-            eventEmitter.once(
+            eventEmitter.onInternal(
                     ChatEvent.JOIN_CHANNEL,
                     (JoinChannelEvent event) -> {
+                        if (channelInfo != null && !channelInfo.CHATNO().equals(event.chatNo())) {
+                            return;
+                        }
                         String synAck = event.userFlag();
                         if (synAck != null && !synAck.isEmpty()) {
                             webSocketManager
                                     .sendEnterInfo(synAck)
                                     .exceptionally(
                                             e -> {
-                                                LOGGER.log(Level.WARNING, "ENTER_INFO 전송 실패", e);
+                                                LOGGER.log(
+                                                        Level.WARNING,
+                                                        "Failed to send ENTER_INFO",
+                                                        e);
                                                 return null;
                                             });
                         }
@@ -73,55 +88,55 @@ public class SOOPConnection {
     public CompletableFuture<Void> connect() {
         return CompletableFuture.runAsync(
                 () -> {
-                    synchronized (connectionLock) {
+                    connectionLock.lock();
+                    try {
                         if (isConnected) {
-                            LOGGER.info("이미 연결되어 있습니다.");
+                            LOGGER.fine("Already connected.");
                             return;
                         }
+                    } finally {
+                        connectionLock.unlock();
+                    }
 
-                        try {
-                            LOGGER.info("채널 정보 가져오는 중: " + config.getBid());
-                            String bno =
-                                    config.getBno() != null
-                                            ? config.getBno()
-                                            : SOOPChatUtils.getBnoFromBid(config.getBid());
+                    try {
+                        LOGGER.fine(() -> "Fetching channel info: " + config.getBid());
+                        String bno =
+                                config.getBno() != null
+                                        ? config.getBno()
+                                        : soopLive.getBno(config.getBid()).join();
 
-                            channelInfo = SOOPChatUtils.getPlayerLive(bno, config.getBid());
-                            LOGGER.info("채널 정보 수신됨: " + channelInfo);
+                        channelInfo =
+                                soopLive.toChannelInfo(
+                                        soopLive.detail(config.getBid(), bno).join());
+                        LOGGER.fine(() -> "Channel info received: " + channelInfo);
 
-                            if (channelInfo.CHPT() == null || channelInfo.CHPT().trim().isEmpty()) {
-                                throw new ConnectionException(
-                                        "채널 포트 정보가 유효하지 않습니다: " + channelInfo.CHPT());
-                            }
-
-                            if (channelInfo.CHDOMAIN() == null
-                                    || channelInfo.CHDOMAIN().trim().isEmpty()) {
-                                throw new ConnectionException(
-                                        "채널 도메인 정보가 유효하지 않습니다: " + channelInfo.CHDOMAIN());
-                            }
-
-                            int maxTries = 5;
-                            for (int i = 0; i < maxTries; i++) {
-                                try {
-                                    webSocketManager.connect(channelInfo).join();
-                                    isConnected = true;
-                                    break;
-                                } catch (Exception e) {
-                                    if (i == maxTries - 1) {
-                                        throw e;
-                                    }
-                                    LOGGER.log(
-                                            Level.WARNING,
-                                            "연결 시도 " + (i + 1) + "/" + maxTries + " 실패, 재시도 중...",
-                                            e);
-                                    Thread.sleep(1000);
-                                }
-                            }
-
-                        } catch (Exception e) {
-                            LOGGER.log(Level.SEVERE, "연결 실패", e);
-                            throw new CompletionException(new ConnectionException("연결에 실패했습니다", e));
+                        if (channelInfo.CHPT() == null || channelInfo.CHPT().trim().isEmpty()) {
+                            throw new ConnectionException(
+                                    "Invalid channel port: " + channelInfo.CHPT());
                         }
+
+                        if (channelInfo.CHDOMAIN() == null
+                                || channelInfo.CHDOMAIN().trim().isEmpty()) {
+                            throw new ConnectionException(
+                                    "Invalid channel domain: " + channelInfo.CHDOMAIN());
+                        }
+
+                        webSocketManager.connect(channelInfo).join();
+
+                        connectionLock.lock();
+                        try {
+                            isConnected = true;
+                        } finally {
+                            connectionLock.unlock();
+                        }
+                    } catch (Exception e) {
+                        LOGGER.log(Level.SEVERE, "Connection failed", e);
+                        Throwable cause = SOOPChatUtils.unwrapCompletionException(e);
+                        if (cause instanceof ConnectionException ce) {
+                            throw new CompletionException(ce);
+                        }
+                        throw new CompletionException(
+                                new ConnectionException("Failed to connect", cause));
                     }
                 },
                 executor);
@@ -130,31 +145,53 @@ public class SOOPConnection {
     public CompletableFuture<Void> reconnect() {
         return CompletableFuture.runAsync(
                 () -> {
-                    synchronized (connectionLock) {
+                    CompletableFuture<Void> existing = null;
+                    connectionLock.lock();
+                    try {
                         if (isReconnecting) {
-                            LOGGER.info("이미 재연결 중입니다.");
-                            if (webSocketManager.getReconnectFuture() != null) {
-                                try {
-                                    webSocketManager.getReconnectFuture().join();
-                                } catch (Exception e) {
-                                    LOGGER.log(Level.WARNING, "재연결 대기 중 오류 발생", e);
-                                    throw new CompletionException(e);
-                                }
-                            }
-                            return;
+                            LOGGER.fine("Already reconnecting.");
+                            existing = webSocketManager.getReconnectFuture();
+                        } else {
+                            isReconnecting = true;
                         }
+                    } finally {
+                        connectionLock.unlock();
+                    }
 
-                        isReconnecting = true;
+                    if (existing != null) {
                         try {
-                            LOGGER.info("재연결 시도 중...");
-                            webSocketManager.reconnect().join();
-                            isConnected = true;
+                            existing.join();
                         } catch (Exception e) {
-                            LOGGER.log(Level.SEVERE, "재연결 실패", e);
-                            throw new CompletionException(
-                                    new ConnectionException("재연결에 실패했습니다", e));
+                            LOGGER.log(Level.WARNING, "Error waiting for reconnect", e);
+                            throw new CompletionException(e);
+                        }
+                        return;
+                    }
+
+                    try {
+                        LOGGER.fine("Attempting reconnect...");
+                        webSocketManager.reconnect().join();
+
+                        connectionLock.lock();
+                        try {
+                            isConnected = true;
                         } finally {
+                            connectionLock.unlock();
+                        }
+                    } catch (Exception e) {
+                        LOGGER.log(Level.SEVERE, "Reconnect failed", e);
+                        Throwable cause = SOOPChatUtils.unwrapCompletionException(e);
+                        if (cause instanceof ConnectionException ce) {
+                            throw new CompletionException(ce);
+                        }
+                        throw new CompletionException(
+                                new ConnectionException("Failed to reconnect", cause));
+                    } finally {
+                        connectionLock.lock();
+                        try {
                             isReconnecting = false;
+                        } finally {
+                            connectionLock.unlock();
                         }
                     }
                 },
@@ -162,21 +199,35 @@ public class SOOPConnection {
     }
 
     public CompletableFuture<Void> sendChat(String message) {
-        if (!config.isAuthenticated()) {
-            return CompletableFuture.failedFuture(
-                    new AuthenticationException("인증이 필요합니다. 채팅을 전송하려면 AuthCookie를 설정하세요."));
-        }
         return webSocketManager.sendChat(message);
     }
 
     public void disconnect() {
-        synchronized (connectionLock) {
+        connectionLock.lock();
+        try {
             try {
                 webSocketManager.disconnect();
             } finally {
                 isConnected = false;
             }
+        } finally {
+            connectionLock.unlock();
         }
+    }
+
+    @Override
+    public void close() {
+        connectionLock.lock();
+        try {
+            try {
+                webSocketManager.close();
+            } finally {
+                isConnected = false;
+            }
+        } finally {
+            connectionLock.unlock();
+        }
+        httpClient.close();
     }
 
     public CompletableFuture<ConnectionStatus> getStatus() {
@@ -190,8 +241,11 @@ public class SOOPConnection {
                                         wsStatus.retryCount()));
     }
 
-    public record ConnectionStatus(boolean connected, boolean reconnecting, int retryCount) {}
-
+    /**
+     * 연결 활성 상태를 반환합니다. 두 값의 조합이므로 정확한 atomic snapshot이 아닌 best-effort 체크입니다.
+     *
+     * @return 연결이 활성 상태로 보이면 true
+     */
     public boolean isConnected() {
         return isConnected && webSocketManager.isConnected();
     }

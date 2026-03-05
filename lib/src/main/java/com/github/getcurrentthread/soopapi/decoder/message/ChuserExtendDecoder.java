@@ -6,10 +6,16 @@ import java.util.Map;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.event.model.ChuserExtendEvent;
+import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class ChuserExtendDecoder implements IMessageDecoder {
+    private static final int MIN_PARTS = 2;
+
     @Override
     public BaseEvent decode(String[] parts, String raw) {
+        if (parts.length < MIN_PARTS) {
+            return null;
+        }
         Map<String, Map<String, Integer>> userStatus = new HashMap<>();
 
         // parts[0]는 채팅방 번호 등 다른 정보일 수 있으므로 1부터 시작
@@ -27,7 +33,7 @@ public class ChuserExtendDecoder implements IMessageDecoder {
                 // = 기준으로 키-값 분리
                 String[] keyValue = pair.split("=");
                 if (keyValue.length == 2) {
-                    status.put(keyValue[0], Integer.parseInt(keyValue[1]));
+                    status.put(keyValue[0], SOOPChatUtils.safeParseInt(keyValue[1], 0));
                 }
             }
 

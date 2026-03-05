@@ -6,6 +6,13 @@ import javax.net.ssl.SSLContext;
 
 import com.github.getcurrentthread.soopapi.api.model.AuthCookie;
 
+/**
+ * 채팅 클라이언트 설정을 담는 불변 설정 클래스입니다.
+ *
+ * <p>{@code authCookie}를 설정하지 않으면 익명(읽기 전용) 모드로 연결됩니다. 익명 모드에서는 채팅 메시지를 수신할 수 있지만, {@code
+ * sendChat()}을 호출하면 {@link com.github.getcurrentthread.soopapi.exception.AuthenticationException}이
+ * 발생합니다.
+ */
 public class SOOPChatConfig {
     private final String bid;
     private final String bno;
@@ -13,9 +20,13 @@ public class SOOPChatConfig {
     private final Duration connectionTimeout;
     private final int maxRetryAttempts;
     private final AuthCookie authCookie;
+    private final long pingIntervalSeconds;
+    private final long initialPacketDelayMs;
 
     private static final Duration DEFAULT_CONNECTION_TIMEOUT = Duration.ofSeconds(30);
     private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 5;
+    private static final long DEFAULT_PING_INTERVAL_SECONDS = 60;
+    private static final long DEFAULT_INITIAL_PACKET_DELAY_MS = 1000;
 
     private SOOPChatConfig(Builder builder) {
         this.bid = builder.bid;
@@ -24,6 +35,8 @@ public class SOOPChatConfig {
         this.connectionTimeout = builder.connectionTimeout;
         this.maxRetryAttempts = builder.maxRetryAttempts;
         this.authCookie = builder.authCookie;
+        this.pingIntervalSeconds = builder.pingIntervalSeconds;
+        this.initialPacketDelayMs = builder.initialPacketDelayMs;
     }
 
     /**
@@ -89,6 +102,24 @@ public class SOOPChatConfig {
         return authCookie != null && authCookie.isAuthenticated();
     }
 
+    /**
+     * 핑 전송 간격(초)을 반환합니다.
+     *
+     * @return 핑 전송 간격(초)
+     */
+    public long getPingIntervalSeconds() {
+        return pingIntervalSeconds;
+    }
+
+    /**
+     * 초기 패킷 전송 후 대기 시간(밀리초)을 반환합니다.
+     *
+     * @return 초기 패킷 대기 시간(밀리초)
+     */
+    public long getInitialPacketDelayMs() {
+        return initialPacketDelayMs;
+    }
+
     /** SOOPChatConfig 빌더 클래스 */
     public static class Builder {
         private String bid;
@@ -97,6 +128,8 @@ public class SOOPChatConfig {
         private Duration connectionTimeout = DEFAULT_CONNECTION_TIMEOUT;
         private int maxRetryAttempts = DEFAULT_MAX_RETRY_ATTEMPTS;
         private AuthCookie authCookie;
+        private long pingIntervalSeconds = DEFAULT_PING_INTERVAL_SECONDS;
+        private long initialPacketDelayMs = DEFAULT_INITIAL_PACKET_DELAY_MS;
 
         /**
          * 방송인 ID를 설정합니다.
@@ -138,6 +171,9 @@ public class SOOPChatConfig {
          * @return 빌더 인스턴스
          */
         public Builder connectionTimeout(Duration connectionTimeout) {
+            if (connectionTimeout == null) {
+                throw new IllegalArgumentException("connectionTimeout must not be null");
+            }
             this.connectionTimeout = connectionTimeout;
             return this;
         }
@@ -165,11 +201,48 @@ public class SOOPChatConfig {
         }
 
         /**
+         * 핑 전송 간격(초)을 설정합니다.
+         *
+         * @param pingIntervalSeconds 핑 전송 간격(초), 기본값 60
+         * @return 빌더 인스턴스
+         */
+        public Builder pingIntervalSeconds(long pingIntervalSeconds) {
+            this.pingIntervalSeconds = pingIntervalSeconds;
+            return this;
+        }
+
+        /**
+         * 초기 패킷 전송 후 대기 시간(밀리초)을 설정합니다.
+         *
+         * @param initialPacketDelayMs 대기 시간(밀리초), 기본값 1000
+         * @return 빌더 인스턴스
+         */
+        public Builder initialPacketDelayMs(long initialPacketDelayMs) {
+            this.initialPacketDelayMs = initialPacketDelayMs;
+            return this;
+        }
+
+        /**
          * SOOPChatConfig 인스턴스를 생성합니다.
          *
          * @return 구성된 SOOPChatConfig 인스턴스
          */
         public SOOPChatConfig build() {
+            if (bid == null || bid.isBlank()) {
+                throw new IllegalArgumentException("bid must not be null or blank");
+            }
+            if (connectionTimeout != null && connectionTimeout.isNegative()) {
+                throw new IllegalArgumentException("connectionTimeout must not be negative");
+            }
+            if (maxRetryAttempts < 0) {
+                throw new IllegalArgumentException("maxRetryAttempts must be >= 0");
+            }
+            if (pingIntervalSeconds <= 0) {
+                throw new IllegalArgumentException("pingIntervalSeconds must be positive");
+            }
+            if (initialPacketDelayMs < 0) {
+                throw new IllegalArgumentException("initialPacketDelayMs must not be negative");
+            }
             return new SOOPChatConfig(this);
         }
     }

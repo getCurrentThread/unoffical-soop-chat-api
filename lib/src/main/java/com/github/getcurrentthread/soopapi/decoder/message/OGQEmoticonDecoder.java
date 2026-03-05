@@ -5,8 +5,13 @@ import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.event.model.OGQEmoticonEvent;
 
 public class OGQEmoticonDecoder implements IMessageDecoder {
+    private static final int MIN_PARTS = 1;
+
     @Override
     public BaseEvent decode(String[] parts, String raw) {
+        if (parts.length < MIN_PARTS) {
+            return null;
+        }
         String chatNo = parts.length >= 6 ? parts[0] : "";
         String message = parts.length >= 6 ? parts[1] : "";
         String groupId = parts.length >= 6 ? parts[2] : "";

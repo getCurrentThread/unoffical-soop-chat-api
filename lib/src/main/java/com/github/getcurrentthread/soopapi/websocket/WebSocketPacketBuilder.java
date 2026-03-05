@@ -1,25 +1,44 @@
 package com.github.getcurrentthread.soopapi.websocket;
 
-import java.util.StringJoiner;
-
 import com.github.getcurrentthread.soopapi.constant.SOOPConstants;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
 import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class WebSocketPacketBuilder {
-    private static final String PING_PACKET = buildPacket("0000", SOOPConstants.F);
+    /** 연결 유지(keep-alive) ping 패킷의 명령 코드. */
+    static final String CMD_PING = "0000";
 
-    // 주기적 연결 유지를 위한 핑 패킷 생성
+    /** 초기 연결 핸드셰이크의 명령 코드. */
+    static final String CMD_CONNECT = "0001";
+
+    /** 채팅 채널 입장의 명령 코드. */
+    static final String CMD_JOIN = "0002";
+
+    /** 채팅 메시지 전송의 명령 코드. */
+    static final String CMD_CHAT = "0005";
+
+    /** 인증된 사용자 입장 정보의 명령 코드. */
+    static final String CMD_ENTER_INFO = "0012";
+
+    /** 모든 패킷의 길이 필드 뒤에 추가되는 고정 접미사. */
+    private static final String PACKET_SUFFIX = "00";
+
+    /** 길이 필드 너비 — 바이트 길이가 이 문자 수만큼 0으로 패딩됩니다. */
+    private static final int LENGTH_FIELD_WIDTH = 6;
+
+    /** 연결 핸드셰이크 시 전송되는 채팅 프로토콜 버전. */
+    private static final String PROTOCOL_VERSION = "16";
+
+    private static final String PING_PACKET = buildPacket(CMD_PING, SOOPConstants.F);
+
     public static String createPingPacket() {
         return PING_PACKET;
     }
 
-    // 초기 연결을 위한 패킷 생성 (익명)
     public static String createConnectPacket() {
         return createConnectPacket(null);
     }
 
-    // 초기 연결을 위한 패킷 생성 (인증 지원)
     public static String createConnectPacket(String authTicket) {
         String payload;
         if (authTicket != null && !authTicket.isEmpty()) {
@@ -27,20 +46,18 @@ public class WebSocketPacketBuilder {
                     SOOPConstants.F
                             + authTicket
                             + SOOPConstants.F.repeat(2)
-                            + "16"
+                            + PROTOCOL_VERSION
                             + SOOPConstants.F;
         } else {
-            payload = SOOPConstants.F.repeat(3) + "16" + SOOPConstants.F;
+            payload = SOOPConstants.F.repeat(3) + PROTOCOL_VERSION + SOOPConstants.F;
         }
-        return buildPacket("0001", payload);
+        return buildPacket(CMD_CONNECT, payload);
     }
 
-    // 채팅방 입장을 위한 패킷 생성 (익명)
     public static String createJoinPacket(ChannelInfo channelInfo) {
         return createJoinPacket(channelInfo, null, null);
     }
 
-    // 채팅방 입장을 위한 패킷 생성 (인증 지원)
     public static String createJoinPacket(ChannelInfo channelInfo, String authTicket, String uuid) {
         StringBuilder payload = new StringBuilder();
         payload.append(SOOPConstants.F).append(channelInfo.CHATNO());
@@ -50,7 +67,6 @@ public class WebSocketPacketBuilder {
             payload.append(SOOPConstants.F).append("0");
             payload.append(SOOPConstants.F);
 
-            // log 메타데이터 블록
             String logQuery = buildLogQuery(channelInfo, uuid);
             payload.append("log")
                     .append(SOOPConstants.ELEMENT_START)
@@ -81,68 +97,67 @@ public class WebSocketPacketBuilder {
             payload.append(SOOPConstants.F.repeat(5));
         }
 
-        return buildPacket("0002", payload.toString());
+        return buildPacket(CMD_JOIN, payload.toString());
     }
 
-    // ENTER_INFO 패킷 생성 (인증된 사용자 전용)
     public static String createEnterInfoPacket(String synAck) {
         String payload = SOOPConstants.F + synAck + SOOPConstants.F + "0" + SOOPConstants.F;
-        return buildPacket("0012", payload);
+        return buildPacket(CMD_ENTER_INFO, payload);
     }
 
-    // 채팅 메시지 전송을 위한 패킷 생성
     public static String createChatPacket(String message) {
-        return buildPacket("0005", SOOPConstants.F + message + SOOPConstants.F.repeat(6));
+        return buildPacket(CMD_CHAT, SOOPConstants.F + message + SOOPConstants.F.repeat(6));
     }
 
-    // 패킷 구조 생성을 위한 유틸리티 메서드
     private static String buildPacket(String command, String data) {
         int byteLength = SOOPChatUtils.utf8ByteLength(data);
         String lengthStr = String.valueOf(byteLength);
         StringBuilder sb =
-                new StringBuilder(SOOPConstants.ESC.length() + 4 + 6 + 2 + data.length());
+                new StringBuilder(
+                        SOOPConstants.ESC.length()
+                                + command.length()
+                                + LENGTH_FIELD_WIDTH
+                                + PACKET_SUFFIX.length()
+                                + data.length());
         sb.append(SOOPConstants.ESC);
         sb.append(command);
-        for (int i = lengthStr.length(); i < 6; i++) {
+        for (int i = lengthStr.length(); i < LENGTH_FIELD_WIDTH; i++) {
             sb.append('0');
         }
         sb.append(lengthStr);
-        sb.append("00");
+        sb.append(PACKET_SUFFIX);
         sb.append(data);
         return sb.toString();
     }
 
-    // log 메타데이터 쿼리 문자열 생성
     private static String buildLogQuery(ChannelInfo channelInfo, String uuid) {
-        StringJoiner joiner = new StringJoiner("");
-        appendParam(joiner, "set_bps", channelInfo.BPS());
-        appendParam(joiner, "view_bps", channelInfo.BPS());
-        appendParam(joiner, "quality", "normal");
-        appendParam(joiner, "uuid", uuid != null ? uuid : "");
-        appendParam(joiner, "geo_cc", channelInfo.geoCC());
-        appendParam(joiner, "geo_rc", channelInfo.geoRC());
-        appendParam(joiner, "acpt_lang", channelInfo.acptLang());
-        appendParam(joiner, "svc_lang", channelInfo.svcLang());
-        appendParam(joiner, "subscribe", "0");
-        appendParam(joiner, "lowlatency", "0");
-        appendParam(joiner, "mode", "landing");
-        return joiner.toString();
+        StringBuilder sb = new StringBuilder();
+        appendParam(sb, "set_bps", channelInfo.BPS());
+        appendParam(sb, "view_bps", channelInfo.BPS());
+        appendParam(sb, "quality", "normal");
+        appendParam(sb, "uuid", uuid != null ? uuid : "");
+        appendParam(sb, "geo_cc", channelInfo.geoCC());
+        appendParam(sb, "geo_rc", channelInfo.geoRC());
+        appendParam(sb, "acpt_lang", channelInfo.acptLang());
+        appendParam(sb, "svc_lang", channelInfo.svcLang());
+        appendParam(sb, "subscribe", "0");
+        appendParam(sb, "lowlatency", "0");
+        appendParam(sb, "mode", "landing");
+        return sb.toString();
     }
 
-    private static void appendParam(StringJoiner joiner, String key, String value) {
-        joiner.add(
-                SOOPConstants.SPACE
-                        + "&"
-                        + SOOPConstants.SPACE
-                        + key
-                        + SOOPConstants.SPACE
-                        + "="
-                        + SOOPConstants.SPACE
-                        + (value != null ? value : ""));
+    private static void appendParam(StringBuilder sb, String key, String value) {
+        sb.append(SOOPConstants.SPACE)
+                .append("&")
+                .append(SOOPConstants.SPACE)
+                .append(key)
+                .append(SOOPConstants.SPACE)
+                .append("=")
+                .append(SOOPConstants.SPACE)
+                .append(value != null ? value : "");
     }
 
-    // 패킷 길이 계산을 위한 유틸리티 메서드
     public static int calculateByteSize(String data) {
-        return SOOPChatUtils.utf8ByteLength(data) + 6;
+        return SOOPChatUtils.utf8ByteLength(data) + LENGTH_FIELD_WIDTH;
     }
 }

@@ -5,8 +5,13 @@ import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.event.model.LiveCaptionEvent;
 
 public class LiveCaptionDecoder implements IMessageDecoder {
+    private static final int MIN_PARTS = 1;
+
     @Override
     public BaseEvent decode(String[] parts, String raw) {
+        if (parts.length < MIN_PARTS) {
+            return null;
+        }
         return new LiveCaptionEvent(
                 parts[0], ChatEvent.LIVE_CAPTION, raw, System.currentTimeMillis());
     }

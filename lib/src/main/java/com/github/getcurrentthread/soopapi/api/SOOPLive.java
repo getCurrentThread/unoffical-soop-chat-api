@@ -1,5 +1,7 @@
 package com.github.getcurrentthread.soopapi.api;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -13,8 +15,8 @@ import com.github.getcurrentthread.soopapi.model.ChannelInfo;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-public class SoopLive {
-    private static final Logger LOGGER = Logger.getLogger(SoopLive.class.getName());
+public class SOOPLive {
+    private static final Logger LOGGER = Logger.getLogger(SOOPLive.class.getName());
     private static final String PLAYER_LIVE_URL =
             "https://live.sooplive.co.kr/afreeca/player_live_api.php";
     private static final String PLAY_URL = "https://play.sooplive.co.kr/";
@@ -23,20 +25,21 @@ public class SoopLive {
                     "<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.co\\.kr/m/(\\d+)\\?");
     private static final Pattern BNO_ALT_PATTERN = Pattern.compile("\"bno\"\\s*:\\s*\"?(\\d+)\"?");
 
-    private final SoopHttpClient httpClient;
+    private final SOOPHttpClient httpClient;
 
-    public SoopLive(SoopHttpClient httpClient) {
+    public SOOPLive(SOOPHttpClient httpClient) {
         this.httpClient = httpClient;
     }
 
     public CompletableFuture<String> getBno(String streamerId) {
         return httpClient
-                .get(PLAY_URL + streamerId)
+                .get(PLAY_URL + URLEncoder.encode(streamerId, StandardCharsets.UTF_8))
                 .thenApply(
                         response -> {
                             if (response.statusCode() != 200) {
                                 throw new SOOPChatException(
-                                        "HTTP 요청 실패. 상태 코드: " + response.statusCode());
+                                        "HTTP request failed. Status code: "
+                                                + response.statusCode());
                             }
 
                             String body = response.body();
@@ -53,7 +56,8 @@ public class SoopLive {
                                 return altMatcher.group(1);
                             }
 
-                            throw new SOOPChatException("BNO를 가져오지 못했습니다. 방송중이 아니거나 오류가 발생했습니다.");
+                            throw new SOOPChatException(
+                                    "Failed to retrieve BNO. The stream may be offline or an error occurred.");
                         });
     }
 
@@ -67,71 +71,71 @@ public class SoopLive {
 
     public CompletableFuture<LiveDetail> detail(
             String streamerId, String bno, AuthCookie authCookie) {
+        String encodedStreamerId = URLEncoder.encode(streamerId, StandardCharsets.UTF_8);
         String requestBody =
                 String.format(
                         "bid=%s&bno=%s&type=live&confirm_adult=false&player_type=html5&mode=landing&from_api=0&pwd=&stream_type=common&quality=HD",
-                        streamerId, bno);
+                        encodedStreamerId, bno);
 
         String cookieHeader = buildCookieHeader(authCookie);
 
         return httpClient
-                .postForm(PLAYER_LIVE_URL + "?bjid=" + streamerId, requestBody, cookieHeader)
+                .postForm(PLAYER_LIVE_URL + "?bjid=" + encodedStreamerId, requestBody, cookieHeader)
                 .thenApply(
                         response -> {
                             if (response.statusCode() != 200) {
                                 throw new SOOPChatException(
-                                        "실시간 방송 정보를 가져오지 못했습니다. 상태 코드: " + response.statusCode());
+                                        "Failed to retrieve live stream info. Status code: "
+                                                + response.statusCode());
                             }
-
-                            try {
-                                JsonObject json =
-                                        JsonParser.parseString(response.body()).getAsJsonObject();
-
-                                int result = json.has("RESULT") ? json.get("RESULT").getAsInt() : 0;
-
-                                if (result != 1) {
-                                    String reason =
-                                            json.has("REASON")
-                                                    ? json.get("REASON").getAsString()
-                                                    : "알 수 없는 오류";
-                                    throw new SOOPChatException("API 오류: " + reason);
-                                }
-
-                                if (!json.has("CHANNEL")) {
-                                    throw new SOOPChatException("응답에 CHANNEL 정보가 없습니다");
-                                }
-
-                                JsonObject channel = json.getAsJsonObject("CHANNEL");
-
-                                return new LiveDetail(
-                                        channel.get("BJID").getAsString(),
-                                        bno,
-                                        channel.get("TITLE").getAsString(),
-                                        channel.get("CHDOMAIN").getAsString().toLowerCase(),
-                                        channel.get("CHATNO").getAsString(),
-                                        channel.get("FTK").getAsString(),
-                                        String.valueOf(channel.get("CHPT").getAsInt() + 1),
-                                        result,
-                                        channel.has("BPS") ? channel.get("BPS").getAsString() : "",
-                                        channel.has("geo_cc")
-                                                ? channel.get("geo_cc").getAsString()
-                                                : "",
-                                        channel.has("geo_rc")
-                                                ? channel.get("geo_rc").getAsString()
-                                                : "",
-                                        channel.has("acpt_lang")
-                                                ? channel.get("acpt_lang").getAsString()
-                                                : "",
-                                        channel.has("svc_lang")
-                                                ? channel.get("svc_lang").getAsString()
-                                                : "");
-                            } catch (SOOPChatException e) {
-                                throw e;
-                            } catch (Exception e) {
-                                LOGGER.log(Level.WARNING, "방송 정보 파싱 오류", e);
-                                throw new SOOPChatException("방송 정보 파싱 실패", e);
-                            }
+                            return parseLiveDetail(response.body(), bno);
                         });
+    }
+
+    private LiveDetail parseLiveDetail(String body, String bno) {
+        try {
+            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+
+            int result = getInt(json, "RESULT", 0);
+
+            if (result != 1) {
+                String reason = getString(json, "REASON", "unknown error");
+                throw new SOOPChatException("API error: " + reason);
+            }
+
+            if (!json.has("CHANNEL")) {
+                throw new SOOPChatException("Response does not contain CHANNEL information");
+            }
+
+            JsonObject channel = json.getAsJsonObject("CHANNEL");
+
+            validateField(channel, "BJID");
+            validateField(channel, "TITLE");
+            validateField(channel, "CHDOMAIN");
+            validateField(channel, "CHATNO");
+            validateField(channel, "FTK");
+            validateField(channel, "CHPT");
+
+            return new LiveDetail(
+                    channel.get("BJID").getAsString(),
+                    bno,
+                    channel.get("TITLE").getAsString(),
+                    channel.get("CHDOMAIN").getAsString().toLowerCase(),
+                    channel.get("CHATNO").getAsString(),
+                    channel.get("FTK").getAsString(),
+                    String.valueOf(channel.get("CHPT").getAsInt() + 1),
+                    result,
+                    getString(channel, "BPS", ""),
+                    getString(channel, "geo_cc", ""),
+                    getString(channel, "geo_rc", ""),
+                    getString(channel, "acpt_lang", ""),
+                    getString(channel, "svc_lang", ""));
+        } catch (SOOPChatException e) {
+            throw e;
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error parsing live stream info", e);
+            throw new SOOPChatException("Failed to parse live stream info", e);
+        }
     }
 
     public ChannelInfo toChannelInfo(LiveDetail detail) {
@@ -147,6 +151,24 @@ public class SoopLive {
                 detail.geoRC(),
                 detail.acptLang(),
                 detail.svcLang());
+    }
+
+    private static void validateField(JsonObject json, String fieldName) {
+        if (!json.has(fieldName) || json.get(fieldName).isJsonNull()) {
+            throw new SOOPChatException("Required field missing: " + fieldName);
+        }
+    }
+
+    private static String getString(JsonObject json, String key, String defaultValue) {
+        return json.has(key) && !json.get(key).isJsonNull()
+                ? json.get(key).getAsString()
+                : defaultValue;
+    }
+
+    private static int getInt(JsonObject json, String key, int defaultValue) {
+        return json.has(key) && !json.get(key).isJsonNull()
+                ? json.get(key).getAsInt()
+                : defaultValue;
     }
 
     private String buildCookieHeader(AuthCookie authCookie) {

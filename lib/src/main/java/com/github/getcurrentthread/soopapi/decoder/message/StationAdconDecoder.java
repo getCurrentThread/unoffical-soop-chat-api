@@ -3,6 +3,7 @@ package com.github.getcurrentthread.soopapi.decoder.message;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.event.model.StationAdconEvent;
+import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class StationAdconDecoder implements IMessageDecoder {
     @Override
@@ -12,7 +13,7 @@ public class StationAdconDecoder implements IMessageDecoder {
                     parts[0],
                     parts[1],
                     parts[2],
-                    Integer.parseInt(parts[3]),
+                    SOOPChatUtils.safeParseInt(parts[3], 0),
                     parts[4],
                     parts[5],
                     parts[6],

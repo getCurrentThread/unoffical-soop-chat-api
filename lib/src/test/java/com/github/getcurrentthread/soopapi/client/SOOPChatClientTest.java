@@ -15,13 +15,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import com.github.getcurrentthread.soopapi.api.SOOPHttpClient;
+import com.github.getcurrentthread.soopapi.api.SOOPLive;
 import com.github.getcurrentthread.soopapi.api.model.AuthCookie;
+import com.github.getcurrentthread.soopapi.api.model.LiveDetail;
 import com.github.getcurrentthread.soopapi.config.SOOPChatConfig;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.model.ChatMessageEvent;
 import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.model.ChannelInfo;
-import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class SOOPChatClientTest {
 
@@ -50,10 +52,12 @@ public class SOOPChatClientTest {
         String testBID = "lshooooo";
         LOGGER.info("Starting test with BID: " + testBID);
 
-        String bno = SOOPChatUtils.getBnoFromBid(testBID);
+        SOOPLive soopLive = new SOOPLive(new SOOPHttpClient());
+        String bno = soopLive.getBno(testBID).join();
         LOGGER.info("Retrieved BNO: " + bno);
 
-        ChannelInfo channelInfo = SOOPChatUtils.getPlayerLive(bno, testBID);
+        LiveDetail liveDetail = soopLive.detail(testBID, bno).join();
+        ChannelInfo channelInfo = soopLive.toChannelInfo(liveDetail);
         LOGGER.info("Retrieved channel info: " + channelInfo);
 
         SOOPChatConfig config = new SOOPChatConfig.Builder().bid(testBID).bno(bno).build();
@@ -182,6 +186,23 @@ public class SOOPChatClientTest {
                 assertThrows(ExecutionException.class, () -> client.sendChat("Hello!").get());
 
         assertInstanceOf(
-                AuthenticationException.class, ex.getCause(), "연결 오류가 아닌 인증 오류가 먼저 발생해야 합니다");
+                AuthenticationException.class, ex.getCause(), "Authentication error should occur before connection error");
+    }
+
+    @Test
+    void constructor_withoutBno_doesNotThrow() {
+        SOOPChatConfig config = new SOOPChatConfig.Builder().bid("testStreamer").build();
+
+        assertDoesNotThrow(() -> new SOOPChatClient(config));
+    }
+
+    @Test
+    void constructor_withNullConfig_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () -> new SOOPChatClient(null));
+    }
+
+    @Test
+    void constructor_withNullBid_throwsIllegalArgument() {
+        assertThrows(IllegalArgumentException.class, () -> new SOOPChatConfig.Builder().build());
     }
 }

@@ -11,17 +11,18 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.getcurrentthread.soopapi.api.model.AuthCookie;
+import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.exception.SOOPChatException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-public class SoopAuth {
-    private static final Logger LOGGER = Logger.getLogger(SoopAuth.class.getName());
+public class SOOPAuth {
+    private static final Logger LOGGER = Logger.getLogger(SOOPAuth.class.getName());
     private static final String LOGIN_URL = "https://login.sooplive.co.kr/app/LoginAction.php";
 
-    private final SoopHttpClient httpClient;
+    private final SOOPHttpClient httpClient;
 
-    public SoopAuth(SoopHttpClient httpClient) {
+    public SOOPAuth(SOOPHttpClient httpClient) {
         this.httpClient = httpClient;
     }
 
@@ -38,7 +39,8 @@ public class SoopAuth {
                         response -> {
                             if (response.statusCode() != 200) {
                                 throw new SOOPChatException(
-                                        "로그인 요청 실패. 상태 코드: " + response.statusCode());
+                                        "Login request failed. Status code: "
+                                                + response.statusCode());
                             }
 
                             try {
@@ -68,26 +70,14 @@ public class SoopAuth {
                                     String reason =
                                             json.has("REASON")
                                                     ? json.get("REASON").getAsString()
-                                                    : "알 수 없는 오류";
-                                    LOGGER.warning("로그인 실패: " + reason);
-                                    return new AuthCookie(
-                                            userId,
-                                            false,
-                                            response.body(),
-                                            "",
-                                            "",
-                                            "",
-                                            "",
-                                            "",
-                                            "",
-                                            "",
-                                            "",
-                                            "",
-                                            "");
+                                                    : "unknown error";
+                                    throw new AuthenticationException("Login failed: " + reason);
                                 }
+                            } catch (AuthenticationException e) {
+                                throw e;
                             } catch (Exception e) {
-                                LOGGER.log(Level.WARNING, "로그인 응답 파싱 오류", e);
-                                throw new SOOPChatException("로그인 응답 파싱 실패", e);
+                                LOGGER.log(Level.WARNING, "Error parsing login response", e);
+                                throw new SOOPChatException("Failed to parse login response", e);
                             }
                         });
     }
@@ -101,7 +91,7 @@ public class SoopAuth {
                     cookies.put(cookie.getName(), cookie.getValue());
                 }
             } catch (Exception e) {
-                LOGGER.log(Level.FINE, "쿠키 파싱 실패: " + header, e);
+                LOGGER.log(Level.FINE, "Failed to parse cookie: " + header, e);
             }
         }
         return cookies;

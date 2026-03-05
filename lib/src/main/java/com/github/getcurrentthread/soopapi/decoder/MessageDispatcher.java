@@ -12,6 +12,7 @@ import com.github.getcurrentthread.soopapi.event.EventEmitter;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.event.model.RawEvent;
 import com.github.getcurrentthread.soopapi.event.model.UnknownEvent;
+import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 
 public class MessageDispatcher {
     private static final Logger LOGGER = Logger.getLogger(MessageDispatcher.class.getName());
@@ -50,7 +51,7 @@ public class MessageDispatcher {
                         }
 
                         String header = message.substring(0, firstSep);
-                        int serviceCode = parseServiceCode(header);
+                        int serviceCode = SOOPChatUtils.parseServiceCode(header);
                         ChatEvent chatEvent = ChatEvent.fromCode(serviceCode);
 
                         if (!eventEmitter.hasListeners(chatEvent)) {
@@ -88,22 +89,5 @@ public class MessageDispatcher {
                         }
                     }
                 });
-    }
-
-    private int parseServiceCode(String header) {
-        try {
-            String[] headerParts = header.split("\t");
-            if (headerParts.length < 2) {
-                return -1;
-            }
-            String lastPart = headerParts[headerParts.length - 1];
-            if (lastPart.length() < 4) {
-                return -1;
-            }
-            return Integer.parseInt(lastPart.substring(0, 4));
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error parsing service code", e);
-            return -1;
-        }
     }
 }
