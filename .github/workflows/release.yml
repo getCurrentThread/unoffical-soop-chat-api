@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.8.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Update version in README.md
+        run: |
+          sed -i "s|implementation 'com.github.getCurrentThread:soopapi:[^']*'|implementation 'com.github.getCurrentThread:soopapi:v${{ github.event.inputs.version }}'|g" README.md
+
+      - name: Update version in gradle.properties
+        run: |
+          sed -i "s|^version=.*|version=${{ github.event.inputs.version }}|" gradle.properties
+
+      - name: Update version in llms.txt
+        run: |
+          sed -i "s|^- 버전: .*|- 버전: v${{ github.event.inputs.version }}|" llms.txt
+
+      - name: Update version in llms-full.txt
+        run: |
+          sed -i "s|^- 버전: .*|- 버전: v${{ github.event.inputs.version }}|" llms-full.txt
+
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md gradle.properties llms.txt llms-full.txt
+          git diff --cached --quiet && echo "No version changes detected" && exit 0
+          git commit -m "chore: bump version to v${{ github.event.inputs.version }}"
+          git tag "v${{ github.event.inputs.version }}"
+          git push origin develop
+          git push origin "v${{ github.event.inputs.version }}"
