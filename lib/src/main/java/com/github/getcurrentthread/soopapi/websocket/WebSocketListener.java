@@ -19,6 +19,9 @@ public class WebSocketListener implements WebSocket.Listener {
     private final EventEmitter eventEmitter;
     private final StringBuilder textBuffer = new StringBuilder(DEFAULT_BUFFER_SIZE);
 
+    private final java.io.ByteArrayOutputStream binaryBuffer =
+            new java.io.ByteArrayOutputStream(DEFAULT_BUFFER_SIZE);
+
     public WebSocketListener(MessageDispatcher messageDispatcher, EventEmitter eventEmitter) {
         this.messageDispatcher = Objects.requireNonNull(messageDispatcher, "messageDispatcher");
         this.eventEmitter = Objects.requireNonNull(eventEmitter, "eventEmitter");
@@ -56,7 +59,21 @@ public class WebSocketListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
-        LOGGER.warning("Received unexpected binary frame");
+        try {
+            byte[] bytes = new byte[data.remaining()];
+            data.get(bytes);
+            binaryBuffer.write(bytes);
+
+            if (last) {
+                String message = binaryBuffer.toString(java.nio.charset.StandardCharsets.UTF_8);
+                messageDispatcher.dispatchMessage(message);
+
+                binaryBuffer.reset();
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error processing binary message", e);
+        }
+
         webSocket.request(1);
         return null;
     }

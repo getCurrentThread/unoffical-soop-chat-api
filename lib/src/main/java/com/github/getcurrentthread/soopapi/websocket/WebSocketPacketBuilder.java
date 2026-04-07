@@ -79,12 +79,12 @@ public class WebSocketPacketBuilder {
 
             payload.append("auth_info")
                     .append(SOOPConstants.ELEMENT_START)
-                    .append("NULL")
+                    .append(authTicket)
                     .append(SOOPConstants.ELEMENT_END);
 
             payload.append("pver")
                     .append(SOOPConstants.ELEMENT_START)
-                    .append("2")
+                    .append("1")
                     .append(SOOPConstants.ELEMENT_END);
 
             payload.append("access_system")

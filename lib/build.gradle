@@ -61,6 +61,15 @@ tasks.withType(JavaCompile) {
     dependsOn 'spotlessApply'
 }
 
+tasks.register('collectFixtures', JavaExec) {
+    group = 'verification'
+    description = 'Collect raw packet fixtures from live SOOP streams'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.github.getcurrentthread.soopapi.DataCollector'
+    args = ['--fixtures']
+    jvmArgs = ['--enable-preview']
+}
+
 test {
     jvmArgs(['--enable-preview'])
     useJUnitPlatform {

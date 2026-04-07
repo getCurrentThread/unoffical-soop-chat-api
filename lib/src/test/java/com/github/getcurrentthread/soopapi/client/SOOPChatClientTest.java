@@ -186,7 +186,9 @@ public class SOOPChatClientTest {
                 assertThrows(ExecutionException.class, () -> client.sendChat("Hello!").get());
 
         assertInstanceOf(
-                AuthenticationException.class, ex.getCause(), "Authentication error should occur before connection error");
+                AuthenticationException.class,
+                ex.getCause(),
+                "Authentication error should occur before connection error");
     }
 
     @Test

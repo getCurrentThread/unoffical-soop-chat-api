@@ -61,7 +61,7 @@ public class MessageDispatcher {
                         IMessageDecoder decoder = messageDecoders.get(chatEvent);
 
                         String[] messageParts =
-                                message.substring(firstSep + 1).split(SOOPConstants.F);
+                                message.substring(firstSep + 1).split(SOOPConstants.F, -1);
 
                         BaseEvent event;
                         if (decoder != null) {

@@ -22,9 +22,8 @@ import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
 /**
  * SOOP 채팅 클라이언트.
  *
- * <p>{@link SOOPChatConfig}에 {@code authCookie}가 설정되지 않은 경우, 클라이언트는 익명(읽기 전용) 모드로
- * 연결됩니다. 익명 모드에서는 채팅 메시지를 수신할 수 있지만, {@link #sendChat(String)}을 호출하면
- * {@link AuthenticationException}이 발생합니다.
+ * <p>{@link SOOPChatConfig}에 {@code authCookie}가 설정되지 않은 경우, 클라이언트는 익명(읽기 전용) 모드로 연결됩니다. 익명 모드에서는
+ * 채팅 메시지를 수신할 수 있지만, {@link #sendChat(String)}을 호출하면 {@link AuthenticationException}이 발생합니다.
  */
 public class SOOPChatClient implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(SOOPChatClient.class.getName());
@@ -75,9 +74,8 @@ public class SOOPChatClient implements AutoCloseable {
     /**
      * 비동기적으로 채팅에 연결합니다.
      *
-     * <p>반환된 {@code CompletableFuture}는 연결이 <b>종료</b>될 때 완료됩니다.
-     * 따라서 {@code connectToChat().join()}을 호출하면 연결이 종료될 때까지
-     * 현재 스레드가 블로킹됩니다.
+     * <p>반환된 {@code CompletableFuture}는 연결이 <b>종료</b>될 때 완료됩니다. 따라서 {@code connectToChat().join()}을
+     * 호출하면 연결이 종료될 때까지 현재 스레드가 블로킹됩니다.
      *
      * @return 연결 해제 시 완료되는 CompletableFuture
      */

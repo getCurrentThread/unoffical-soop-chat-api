@@ -10,3 +10,4 @@
 # Binary files should be left untouched
 *.jar           binary
 
+lib/src/test/resources/fixtures/*.bin filter=lfs diff=lfs merge=lfs -text

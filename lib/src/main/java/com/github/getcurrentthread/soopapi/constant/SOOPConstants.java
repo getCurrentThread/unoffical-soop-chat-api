@@ -9,9 +9,9 @@ package com.github.getcurrentthread.soopapi.constant;
  * [ESC] [command:4] [length:6] [suffix:2] [payload]
  * </pre>
  *
- * <p>페이로드는 {@link #F} (폼 피드, {@code U+000C})를 필드 구분자로 사용합니다. 페이로드 내의 구조화된
- * 메타데이터 블록은 {@link #ELEMENT_START}와 {@link #ELEMENT_END} 구분자를 사용합니다.
- * 메타데이터 내의 쿼리 파라미터는 연산자 주위에 {@link #SPACE} ({@code U+0006})를 사용합니다.
+ * <p>페이로드는 {@link #F} (폼 피드, {@code U+000C})를 필드 구분자로 사용합니다. 페이로드 내의 구조화된 메타데이터 블록은 {@link
+ * #ELEMENT_START}와 {@link #ELEMENT_END} 구분자를 사용합니다. 메타데이터 내의 쿼리 파라미터는 연산자 주위에 {@link #SPACE}
+ * ({@code U+0006})를 사용합니다.
  */
 public class SOOPConstants {
     /** 폼 피드 문자 ({@code U+000C}) — 패킷 페이로드의 기본 필드 구분자. */
@@ -20,10 +20,7 @@ public class SOOPConstants {
     /** 효율적인 단일 문자 연산을 위한 {@code char} 타입의 폼 피드. */
     public static final char F_CHAR = '\u000c';
 
-    /**
-     * 패킷 헤더 접두사: ESC ({@code U+001B}) 뒤에 TAB ({@code U+0009}). 모든 송신 패킷은
-     * 이 2바이트 시퀀스로 시작합니다.
-     */
+    /** 패킷 헤더 접두사: ESC ({@code U+001B}) 뒤에 TAB ({@code U+0009}). 모든 송신 패킷은 이 2바이트 시퀀스로 시작합니다. */
     public static final String ESC = "\u001b\t";
 
     /** 요소 시작 마커 ({@code U+0011}) — 구조화된 메타데이터 블록을 엽니다. */
@@ -33,8 +30,7 @@ public class SOOPConstants {
     public static final String ELEMENT_END = "\u0012";
 
     /**
-     * 특수 공백 문자 ({@code U+0006}) — 메타데이터 블록 내의 로그 쿼리 파라미터에서
-     * 연산자 ({@code &}, {@code =}) 주위에 사용됩니다.
+     * 특수 공백 문자 ({@code U+0006}) — 메타데이터 블록 내의 로그 쿼리 파라미터에서 연산자 ({@code &}, {@code =}) 주위에 사용됩니다.
      */
     public static final String SPACE = "\u0006";
 

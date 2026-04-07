@@ -23,7 +23,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.5.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.6.1'
 }
 ```
 
@@ -659,6 +659,113 @@ TRANSLATION_STATE (94) — TranslationStateEvent
 
 NONE_TYPE (-1) — UnknownEvent
   int code, String originalMessage
+
+### Fixture 검증 실제 데이터 (30개 이벤트)
+
+실제 수집된 패킷 fixture로 디코딩이 검증된 이벤트 및 필드 값 예시입니다.
+
+**ADCON_EFFECT** — 애드벌룬 후원
+  bjId="r*******d", senderId="o*******0", senderNickname="온*온", adconCount=200
+  message="애드벌룬 200개 선물!", message2="애드벌룬 200개를 선물했습니다!", urlImg="https://res.sooplive.com/..."
+
+**BAN_WORD** — 금지어 설정
+  replaceWord="***" (금지어 대체 표시 텍스트), banWordList=["***..."] (금지어 배열)
+
+**BJ_NOTICE** — BJ 공지
+  show=1 (1=표시, 0=숨김), message="***" (공지 텍스트, HTML 허용)
+
+**BJ_STICKER_ITEM** — BJ 스티커 아이템 이벤트
+  type=4
+
+**CHAT_MESSAGE** — 채팅 메시지
+  message="쎈바론인데 ㅅ*", senderId="k*****l", senderNickname="보***뎃"
+  senderFlag="81952|32768", subscriptionMonth="-1" (-1=비구독), chatLang=3
+  randomNicknameColor="0C61E1", randomNicknameColorDarkmode="5C82E3"
+
+**CHAT_USER** — 사용자 입퇴장 목록
+  type=1 (입장), userList.size=40 (최대 40명의 유저 일괄 전달)
+  각 항목: id (로그인 ID, "(N)" 접미사는 멀티 로그인 번호), nickname, flag (비트 플래그)
+
+**CHUSER_EXTEND** — 구독자 상태 확장 정보
+  userStatus.size=13, 키는 "fw=N&afw=N" 형식 (fw=팔로우 수, afw=실제 팔로우)
+
+**EMOTICON_TICKET** — 이모티콘 사용권 (채널 입장 직후 수신)
+  value=1
+
+**FOLLOW_ITEM** — 신규 구독 (구독 아이템 발송)
+  chatNo=7450, recvId="n*****i" (BJ ID), sendId="b****i", sendNick="솜***우", type=111
+
+**FOLLOW_ITEM_EFFECT** — 연속 구독 효과
+  bjId="l*****9", sendId="s*****0", sendNick="오***개", month=27 (연속 구독 개월 수), chatNo=2300
+
+**ICE_MODE** — 아이스 모드 (별풍선 0개로 후원 제한)
+  iceMode=1 (1=활성화, 0=비활성화)
+
+**ICE_MODE_EX** — 확장 아이스 모드
+  iceMode=1, freezeType=1008, balloonLimitCount=1 (최소 풍선 수), subscriptionLimitCount=1
+
+**ITEM_DROPS** — 아이템 드롭 이벤트
+  bjId="t*****8", dropsName="컬쳐랜드 1만원", dropsMsg="" (선택적 메시지), dropsImgUrl="" (선택적 이미지 URL)
+
+**JOIN_CHANNEL** — 채널 입장 핸드셰이크 응답
+  chatNo="****", bjId="b****d", maxSubBjCount=10, familyNickname="" (패밀리방 시 값), userFlag="16|16384"
+
+**KICK_MSG_STATE** — 강퇴 메시지 표시 상태
+  chatNo="****" (채팅방 번호), isHideKickMessage=false (강퇴 메시지 표시 여부)
+
+**LOGIN** — 로그인 핸드셰이크 응답
+  userId="" (익명 연결 시 빈 문자열), userFlag="16|0"
+
+**MISSION** — 챌린지 미션 알림 (JSON)
+  data keys: [type, mission_status, title, key, uuid]
+  예: type="CHALLENGE_NOTICE", mission_status="FAIL", title="***"
+
+**MISSION_SETTLE** — 미션 정산 결과 (JSON)
+  data keys: [chno, fanOrder, list, uuid]
+  예: chno=****, fanOrder=****, list=[["u****d", "닉***", 금액, ...]]
+
+**OGQ_EMOTICON** — OGQ 이모티콘 사용
+  chatNo="****", groupId="***" (이모티콘 그룹 UUID), subId="3", version="1"
+  userInfo="u****r(2)" (사용자 ID), color="닉***" (닉네임), chatLang="플래그값" (비트 플래그)
+
+**OGQ_EMOTICON_GIFT** — OGQ 이모티콘 선물
+  senderId="y*****2", senderNick="원***♥", receivedId="s*******2", receivedNick="룰***롤"
+  ogqTitle="***" (스티커팩 이름), ogqImageUrl="//ogq-sticker-global-cdn-z01.sooplive.com/..."
+
+**SEND_BALLOON** — 별풍선 후원
+  bjId="r*******d", senderId="p*****0", senderNickname="여***용", count=3000
+  fanOrder=0, fileName="3000" (풍선 수량 효과 파일명), isDefault=false, ttsData="yumi" (TTS 캐릭터)
+
+**SEND_QUICK_VIEW** — 퀵뷰 선물
+  senderId="j*******3", senderNickname="JD_***동", receiverId="d*****2", receiverNickname="JD_***강"
+  itemType=101
+
+**SEND_SUBSCRIPTION** — 구독 선물
+  senderId="r*******d", senderNickname="***김택용", receiverId="p*****0", receiverNickname="***연애"
+  itemType=11, itemCode="***" (서버 생성 구독 코드), isSubscription=0, subscriptionType="0"
+
+**SET_BJ_STAT** — BJ 상태 변경 (방송 연결 해제 시 수신)
+  공통 필드만 포함 (eventType, raw, timestamp)
+
+**SET_DUMB** — 채금 (채팅 금지)
+  userId="b*****e", userNickname="연***", dumbTime=30 (초), dumbCount=1
+  adminId="j*******3", adminType=1 (1=방송인, 2=매니저), extraInfo="" (추가 정보)
+
+**SET_NICKNAME** — 닉네임 변경
+  userId="m*******8", newNickname="딩***3", oldNickname="항***잉", changeType=0, flag="65536|163840"
+
+**SET_SUB_BJ** — 서브 BJ 설정
+  userId="g*****u", nickname="건:]", flag="269025632|688128", hide=0 (0=표시)
+
+**SET_USER_FLAG** — 사용자 플래그 변경 (입장 등급 변경 시)
+  userId="w*******5", userNickname="물***다", oldFlag="720928|163840", newFlag="589856|163840"
+
+**TRANSLATION_STATE** — 번역 기능 상태
+  state=1 (1=활성화, 0=비활성화)
+
+**VIDEO_BALLOON** — 영상 후원 (영상 별풍선)
+  chatNo="****", bjId="b****d", userId="u*****r", userNickname="닉***"
+  balloonCount=9, fanOrder=0, isDefault=true, relay="0", extraData="61ac***"
 
 ### EventEmitter
 

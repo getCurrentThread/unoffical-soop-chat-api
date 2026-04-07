@@ -3,8 +3,7 @@ package com.github.getcurrentthread.soopapi.decoder;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -44,42 +43,34 @@ class MessageDispatcherTest {
     }
 
     @Test
-    void rawEvent_emittedForEveryMessage() throws Exception {
+    void rawEvent_emittedForEveryMessage() {
         dispatcher = createDispatcher(Map.of());
 
-        CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<String> received = new AtomicReference<>();
-
-        emitter.on(
-                ChatEvent.RAW,
-                (RawEvent e) -> {
-                    received.set(e.raw());
-                    latch.countDown();
-                });
+        emitter.on(ChatEvent.RAW, (RawEvent e) -> received.set(e.raw()));
 
         String message = "header" + SOOPConstants.F + "body";
         dispatcher.dispatchMessage(message);
 
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "RAW event should be emitted");
-        assertEquals(message, received.get());
+        assertEquals(message, received.get(), "RAW event should be emitted");
     }
 
     @Test
-    void messageWithoutSeparator_isIgnored() throws Exception {
+    void messageWithoutSeparator_isIgnored() {
         dispatcher = createDispatcher(Map.of());
 
-        CountDownLatch rawLatch = new CountDownLatch(1);
-        emitter.on(ChatEvent.RAW, (RawEvent e) -> rawLatch.countDown());
+        AtomicReference<String> receivedRaw = new AtomicReference<>();
+        emitter.on(ChatEvent.RAW, (RawEvent e) -> receivedRaw.set(e.raw()));
 
         // F 구분자가 없는 메시지 - RAW 이벤트만 발생해야 함
         dispatcher.dispatchMessage("no_separator_message");
 
-        // RAW 리스너는 여전히 실행되어야 함
-        assertTrue(rawLatch.await(2, TimeUnit.SECONDS));
+        assertEquals(
+                "no_separator_message", receivedRaw.get(), "RAW event should still be emitted");
     }
 
     @Test
-    void knownEvent_routedToDecoder() throws Exception {
+    void knownEvent_routedToDecoder() {
         IMessageDecoder chatDecoder =
                 (parts, raw) ->
                         new ChatMessageEvent(
@@ -98,15 +89,8 @@ class MessageDispatcherTest {
 
         dispatcher = createDispatcher(Map.of(ChatEvent.CHAT_MESSAGE, chatDecoder));
 
-        CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<ChatMessageEvent> received = new AtomicReference<>();
-
-        emitter.on(
-                ChatEvent.CHAT_MESSAGE,
-                (ChatMessageEvent e) -> {
-                    received.set(e);
-                    latch.countDown();
-                });
+        emitter.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> received.set(e));
 
         // 서비스 코드 5 (CHAT_MESSAGE)로 메시지 구성
         // 헤더 형식: ESC + TAB + "0005" + 길이 + 접미사
@@ -116,23 +100,16 @@ class MessageDispatcherTest {
 
         dispatcher.dispatchMessage(message);
 
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "Chat message event should be dispatched");
+        assertNotNull(received.get(), "Chat message event should be dispatched");
         assertEquals("Hello", received.get().message());
     }
 
     @Test
-    void unknownEvent_dispatchedAsUnknown() throws Exception {
+    void unknownEvent_dispatchedAsUnknown() {
         dispatcher = createDispatcher(Map.of());
 
-        CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<UnknownEvent> received = new AtomicReference<>();
-
-        emitter.on(
-                ChatEvent.NONE_TYPE,
-                (UnknownEvent e) -> {
-                    received.set(e);
-                    latch.countDown();
-                });
+        emitter.on(ChatEvent.NONE_TYPE, (UnknownEvent e) -> received.set(e));
 
         // 알 수 없는 서비스 코드 (9999) 사용
         String header = SOOPConstants.ESC + "9999" + "000010" + "00";
@@ -140,12 +117,11 @@ class MessageDispatcherTest {
 
         dispatcher.dispatchMessage(message);
 
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "Unknown event should be dispatched");
-        assertNotNull(received.get());
+        assertNotNull(received.get(), "Unknown event should be dispatched");
     }
 
     @Test
-    void decoderException_doesNotCrashDispatcher() throws Exception {
+    void decoderException_doesNotCrashDispatcher() {
         IMessageDecoder failingDecoder =
                 (parts, raw) -> {
                     throw new RuntimeException("Decoder error");
@@ -153,8 +129,8 @@ class MessageDispatcherTest {
 
         dispatcher = createDispatcher(Map.of(ChatEvent.CHAT_MESSAGE, failingDecoder));
 
-        CountDownLatch rawLatch = new CountDownLatch(1);
-        emitter.on(ChatEvent.RAW, (RawEvent e) -> rawLatch.countDown());
+        AtomicReference<String> receivedRaw = new AtomicReference<>();
+        emitter.on(ChatEvent.RAW, (RawEvent e) -> receivedRaw.set(e.raw()));
         emitter.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {});
 
         String header = SOOPConstants.ESC + "0005" + "000010" + "00";
@@ -163,7 +139,7 @@ class MessageDispatcherTest {
         // 예외가 발생하지 않아야 함; 오류는 내부적으로 처리됨
         dispatcher.dispatchMessage(message);
 
-        assertTrue(rawLatch.await(2, TimeUnit.SECONDS), "RAW event should still be emitted");
+        assertEquals(message, receivedRaw.get(), "RAW event should still be emitted");
     }
 
     @Test
@@ -180,6 +156,37 @@ class MessageDispatcherTest {
     }
 
     private MessageDispatcher createDispatcher(Map<ChatEvent, IMessageDecoder> decoders) {
-        return new MessageDispatcher(decoders, Executors.newSingleThreadExecutor(), emitter);
+        // 동기 실행을 위한 익명 ExecutorService
+        ExecutorService directExecutor =
+                new java.util.concurrent.AbstractExecutorService() {
+                    @Override
+                    public void shutdown() {}
+
+                    @Override
+                    public java.util.List<Runnable> shutdownNow() {
+                        return java.util.List.of();
+                    }
+
+                    @Override
+                    public boolean isShutdown() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean isTerminated() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean awaitTermination(long timeout, TimeUnit unit) {
+                        return true;
+                    }
+
+                    @Override
+                    public void execute(Runnable command) {
+                        command.run();
+                    }
+                };
+        return new MessageDispatcher(decoders, directExecutor, emitter);
     }
 }

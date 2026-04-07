@@ -5,14 +5,12 @@ import com.github.getcurrentthread.soopapi.event.model.BanWordEvent;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 
 public class BanWordDecoder implements IMessageDecoder {
-    private static final int MIN_PARTS = 2;
-
     @Override
     public BaseEvent decode(String[] parts, String raw) {
-        if (parts.length < MIN_PARTS) {
-            return null;
-        }
+        String replaceWord = parts.length > 0 ? parts[0] : "";
+        String[] banWordList = parts.length > 1 ? parts[1].split(",") : new String[0];
+
         return new BanWordEvent(
-                parts[0], parts[1].split(","), ChatEvent.BAN_WORD, raw, System.currentTimeMillis());
+                replaceWord, banWordList, ChatEvent.BAN_WORD, raw, System.currentTimeMillis());
     }
 }

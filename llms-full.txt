@@ -23,7 +23,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.5.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.6.1'
 }
 ```
 
@@ -708,6 +708,55 @@ public class ChatMessageDecoder implements IMessageDecoder {
 | -4 | RECONNECTING | 재연결 시도 |
 | -5 | RECONNECTED | 재연결 완료 |
 | -1 | NONE_TYPE | 알 수 없는 타입 |
+
+## Fixture 검증 데이터 (30개 이벤트 실제 캡처)
+
+실제 수집된 패킷 `.bin` fixture를 사용해 디코딩이 검증된 30개 이벤트의 실제 필드 값 예시입니다.
+`lib/src/test/java/.../decoder/FixtureDecoderDetailTest.java`에서 각 이벤트별 단위 테스트를 확인할 수 있습니다.
+
+| 이벤트 | 검증된 필드 값 예시 |
+|--------|---------------------|
+| ADCON_EFFECT | adconCount=200, message="애드벌룬 200개 선물!", urlDefault="https://res.sooplive.com/..." |
+| BAN_WORD | replaceWord="***" (대체어), banWordList=["***..."] (금지어 배열, 1개) |
+| BJ_NOTICE | show=1, message="***" (공지 텍스트, HTML 허용) |
+| BJ_STICKER_ITEM | type=4 |
+| CHAT_MESSAGE | type=0(일반), chatLang=3, subscriptionMonth="-1"(비구독), senderFlag="81952|32768" |
+| CHAT_USER | type=1(입장), userList.size=40 (일괄 전달), 각 유저: id, nickname, flag |
+| CHUSER_EXTEND | userStatus.size=13, 키 형식="fw=N&afw=N" (팔로우/실제팔로우 수) |
+| EMOTICON_TICKET | value=1 (채널 입장 직후) |
+| FOLLOW_ITEM | type=111, chatNo=7450, recvId=BJ ID, sendId=구독자 ID |
+| FOLLOW_ITEM_EFFECT | month=27 (연속 구독 개월), chatNo=2300 |
+| ICE_MODE | iceMode=1 (1=활성화) |
+| ICE_MODE_EX | iceMode=1, freezeType=1008, balloonLimitCount=1, subscriptionLimitCount=1 |
+| ITEM_DROPS | dropsName="컬쳐랜드 1만원", dropsMsg="" (선택), dropsImgUrl="" (선택) |
+| JOIN_CHANNEL | maxSubBjCount=10, familyNickname="" (패밀리방 시 값), userFlag="16|16384" |
+| KICK_MSG_STATE | chatNo="****" (채팅방 번호), isHideKickMessage=false |
+| LOGIN | userId="" (익명=빈 문자열), userFlag="16|0" |
+| MISSION | data: {type="CHALLENGE_NOTICE", mission_status="FAIL", title="...", key=숫자, uuid="..."} |
+| MISSION_SETTLE | data: {chno=****, fanOrder=****, list=[["userId","닉네임",금액,...]], uuid="..."} |
+| OGQ_EMOTICON | groupId="***" (이모티콘 그룹 UUID), subId="3", version="1", userInfo=userId, color=닉네임 |
+| OGQ_EMOTICON_GIFT | ogqTitle="***" (스티커팩 이름), ogqImageUrl="//ogq-sticker-global-cdn-z01.sooplive.com/..." |
+| SEND_BALLOON | count=3000, fileName="3000"(효과파일명), isDefault=false, ttsData="yumi"(TTS캐릭터) |
+| SEND_QUICK_VIEW | itemType=101, senderId/receiverId 쌍으로 전달 |
+| SEND_SUBSCRIPTION | itemType=11, itemCode="***" (서버 생성 구독 코드), isSubscription=0, subscriptionType="0" |
+| SET_BJ_STAT | 공통 필드만 (방송 연결 해제 신호) |
+| SET_DUMB | dumbTime=30(초), dumbCount=1, adminType=1(방송인) or 2(매니저), extraInfo="" |
+| SET_NICKNAME | changeType=0, oldNickname="***", newNickname="***", flag="65536|163840" |
+| SET_SUB_BJ | hide=0(0=표시), flag="269025632|688128" |
+| SET_USER_FLAG | oldFlag="720928|163840" → newFlag="589856|163840" (입장 등급 변경 시) |
+| TRANSLATION_STATE | state=1 (1=번역 활성화, 0=비활성화) |
+| VIDEO_BALLOON | balloonCount=9, isDefault=true, relay="0", extraData=MD5해시 |
+
+### 플래그(flag) 필드 해석 패턴
+
+`senderFlag`, `userFlag`, `flag` 등은 "비트값|비트값" 형식의 문자열로 전달됩니다.
+파이프(`|`)로 구분된 두 정수를 비트 연산으로 파싱합니다.
+정확한 비트 의미는 SOOP 비공개 사양이며, 라이브러리는 원시 값을 그대로 제공합니다.
+
+### JSON 이벤트 (Map<String, Object>)
+
+MISSION, MISSION_SETTLE, AD_IN_BROAD_JSON 이벤트는 `data` 필드에 JSON 파싱 결과를 담습니다.
+JSON 숫자는 Gson의 기본 동작에 따라 `Double`로 파싱될 수 있습니다.
 
 ## 이벤트 시스템 내부
 

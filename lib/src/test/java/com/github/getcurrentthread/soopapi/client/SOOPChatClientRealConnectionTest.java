@@ -170,7 +170,10 @@ class SOOPChatClientRealConnectionTest {
                                         } catch (Exception e) {
                                             logger.log(
                                                     Level.WARNING,
-                                                    "[" + bid + "] Connection failed: " + e.getMessage(),
+                                                    "["
+                                                            + bid
+                                                            + "] Connection failed: "
+                                                            + e.getMessage(),
                                                     e);
                                         }
                                     },
@@ -187,9 +190,16 @@ class SOOPChatClientRealConnectionTest {
         }
 
         CompletableFuture.allOf(futures).join();
-        logger.info("=== Connection complete: " + connectedCount.get() + "/" + clients.size() + " succeeded ===");
+        logger.info(
+                "=== Connection complete: "
+                        + connectedCount.get()
+                        + "/"
+                        + clients.size()
+                        + " succeeded ===");
 
-        assertTrue(connectedCount.get() >= 5, "At least 5 connections required, actual: " + connectedCount.get());
+        assertTrue(
+                connectedCount.get() >= 5,
+                "At least 5 connections required, actual: " + connectedCount.get());
 
         // === 4단계: 최대 3분 또는 30개 이벤트까지 대기 (10초마다 상태 확인) ===
         logger.info(
@@ -223,7 +233,10 @@ class SOOPChatClientRealConnectionTest {
                             .filter(e -> e.getKey().startsWith(bid + ":"))
                             .mapToLong(e -> e.getValue().get())
                             .sum();
-            logger.info(String.format("[%s] Total events: %d, Chat messages: %d", bid, totalForBid, chatCount));
+            logger.info(
+                    String.format(
+                            "[%s] Total events: %d, Chat messages: %d",
+                            bid, totalForBid, chatCount));
         }
         logger.info("Total events received: " + totalEvents.get());
 

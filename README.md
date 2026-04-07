@@ -258,25 +258,52 @@ v0.5.0부터 `connectToChat()`이 반환하는 `CompletableFuture`는 연결이 
 
 `ChatEvent` 열거형으로 모든 이벤트를 구독할 수 있습니다. 각 이벤트는 타입 안전한 Java Record로 디코딩됩니다.
 
-| 이벤트 | 코드 | Record 타입 |
-|--------|------|-------------|
-| `CHAT_MESSAGE` | 5 | `ChatMessageEvent` |
-| `SEND_BALLOON` | 18 | `SendBalloonEvent` |
-| `OGQ_EMOTICON` | 109 | `OGQEmoticonEvent` |
-| `SEND_SUBSCRIPTION` | 108 | `SendSubscriptionEvent` |
-| `JOIN_CHANNEL` | 2 | `JoinChannelEvent` |
-| `QUIT_CHANNEL` | 3 | `QuitChannelEvent` |
-| `KICK` | 11 | `KickEvent` |
-| `NOTICE` | 10 | `NoticeEvent` |
-| `CHOCOLATE` | 37 | `ChocolateEvent` |
-| `VIDEO_BALLOON` | 105 | `VideoBalloonEvent` |
-| `LIVE_CAPTION` | 122 | `LiveCaptionEvent` |
-| `MISSION` | 121 | `MissionEvent` |
-| `DISCONNECTED` | -3 | `DisconnectedEvent` |
-| `RECONNECTING` | -4 | `ReconnectingEvent` |
-| `RECONNECTED` | -5 | `ReconnectedEvent` |
+### 지원 이벤트 목록
 
-...그 외 83개 이벤트 타입 지원. 전체 목록은 `ChatEvent.java`를 참조하세요.
+아래 이벤트는 실제 수집된 패킷으로 디코딩이 검증되었습니다.
+
+| 이벤트 | 코드 | Record 타입 | 주요 필드 |
+|--------|------|-------------|-----------|
+| `LOGIN` | 1 | `LoginEvent` | `userId`, `userFlag` (익명 시 userId="") |
+| `JOIN_CHANNEL` | 2 | `JoinChannelEvent` | `chatNo`, `bjId`, `maxSubBjCount`, `userFlag` |
+| `CHAT_USER` | 4 | `ChatUserEvent` | `type`, `userList` (id/nickname/flag 목록) |
+| `CHAT_MESSAGE` | 5 | `ChatMessageEvent` | `message`, `senderId`, `senderNickname`, `senderFlag`, `subscriptionMonth`, `randomNicknameColor` |
+| `SET_BJ_STAT` | 7 | `SetBjStatEvent` | (공통 필드만, 방송 연결 해제 시 수신) |
+| `SET_DUMB` | 8 | `SetDumbEvent` | `userId`, `userNickname`, `dumbTime`(초), `dumbCount`, `adminId`, `adminType` |
+| `SET_USER_FLAG` | 12 | `SetUserFlagEvent` | `userId`, `userNickname`, `oldFlag`, `newFlag` |
+| `SET_SUB_BJ` | 13 | `SetSubBjEvent` | `userId`, `nickname`, `flag`, `hide` |
+| `SET_NICKNAME` | 14 | `SetNicknameEvent` | `userId`, `newNickname`, `oldNickname`, `changeType`, `flag` |
+| `SEND_BALLOON` | 18 | `SendBalloonEvent` | `bjId`, `senderId`, `senderNickname`, `count`, `fanOrder`, `fileName`, `isDefault`, `ttsData` |
+| `ICE_MODE` | 19 | `IceModeEvent` | `iceMode` (1=활성화) |
+| `ICE_MODE_EX` | 21 | `IceModeExEvent` | `iceMode`, `freezeType`, `balloonLimitCount`, `subscriptionLimitCount` |
+| `BJ_STICKER_ITEM` | 36 | `BjStickerItemEvent` | `type` |
+| `BAN_WORD` | 54 | `BanWordEvent` | `replaceWord` (대체어), `banWordList` (금지어 배열) |
+| `ADCON_EFFECT` | 87 | `AdconEffectEvent` | `bjId`, `senderId`, `senderNickname`, `adconCount`, `message`, `message2`, `urlImg`, `urlDefault` |
+| `KICK_MSG_STATE` | 90 | `KickMsgStateEvent` | `chatNo`, `isHideKickMessage` |
+| `FOLLOW_ITEM` | 91 | `FollowItemEvent` | `chatNo`, `recvId`, `sendId`, `sendNick`, `type` (신규 구독) |
+| `FOLLOW_ITEM_EFFECT` | 93 | `FollowItemEffectEvent` | `bjId`, `sendId`, `sendNick`, `month` (연속 구독 개월 수) |
+| `TRANSLATION_STATE` | 94 | `TranslationStateEvent` | `state` (1=번역 활성화) |
+| `BJ_NOTICE` | 104 | `BjNoticeEvent` | `show` (1=표시), `message` (공지 내용) |
+| `VIDEO_BALLOON` | 105 | `VideoBalloonEvent` | `bjId`, `userId`, `userNickname`, `balloonCount`, `fanOrder`, `isDefault`, `extraData` |
+| `SEND_SUBSCRIPTION` | 108 | `SendSubscriptionEvent` | `senderId`, `senderNickname`, `receiverId`, `receiverNickname`, `itemType`, `itemCode`, `subscriptionType` |
+| `OGQ_EMOTICON` | 109 | `OGQEmoticonEvent` | `chatNo`, `groupId`, `subId`, `version`, `userInfo`, `color` |
+| `EMOTICON_TICKET` | 110 | `EmoticonTicketEvent` | `value` (채널 입장 직후 수신, 보통 1) |
+| `ITEM_DROPS` | 111 | `ItemDropsEvent` | `bjId`, `dropsName`, `dropsMsg`, `dropsImgUrl` |
+| `OGQ_EMOTICON_GIFT` | 118 | `GiftOGQEmoticonEvent` | `senderId`, `senderNick`, `receivedId`, `receivedNick`, `ogqTitle`, `ogqImageUrl` |
+| `MISSION` | 121 | `MissionEvent` | `data` (JSON Map: type, mission_status, title, key, uuid) |
+| `MISSION_SETTLE` | 125 | `MissionSettleEvent` | `data` (JSON Map: chno, fanOrder, list, uuid) |
+| `CHUSER_EXTEND` | 127 | `ChuserExtendEvent` | `userStatus` (구독자 fw/afw 상태 맵) |
+| `SEND_QUICK_VIEW` | 45 | `QuickViewEvent` | `senderId`, `senderNickname`, `receiverId`, `receiverNickname`, `itemType` |
+
+### 연결 상태 이벤트
+
+| 이벤트 | 코드 | Record 타입 | 주요 필드 |
+|--------|------|-------------|-----------|
+| `DISCONNECTED` | -3 | `DisconnectedEvent` | `statusCode`, `reason`, `causedByError` |
+| `RECONNECTING` | -4 | `ReconnectingEvent` | `attemptNumber`, `maxAttempts`, `delayMs` |
+| `RECONNECTED` | -5 | `ReconnectedEvent` | `totalAttempts` |
+
+전체 93개 이벤트 타입은 `ChatEvent.java`를, 모든 Record 필드 상세는 `llms-full.txt`를 참조하세요.
 
 ## AI 지원 문서
 

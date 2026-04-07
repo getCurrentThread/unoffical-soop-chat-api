@@ -18,11 +18,11 @@ import com.google.gson.JsonParser;
 public class SOOPLive {
     private static final Logger LOGGER = Logger.getLogger(SOOPLive.class.getName());
     private static final String PLAYER_LIVE_URL =
-            "https://live.sooplive.co.kr/afreeca/player_live_api.php";
-    private static final String PLAY_URL = "https://play.sooplive.co.kr/";
+            "https://live.sooplive.com/afreeca/player_live_api.php";
+    private static final String PLAY_URL = "https://play.sooplive.com/";
     private static final Pattern BNO_PATTERN =
             Pattern.compile(
-                    "<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.co\\.kr/m/(\\d+)\\?");
+                    "<meta property=\"og:image\" content=\"https://liveimg\\.sooplive\\.com/m/(\\d+)");
     private static final Pattern BNO_ALT_PATTERN = Pattern.compile("\"bno\"\\s*:\\s*\"?(\\d+)\"?");
 
     private final SOOPHttpClient httpClient;
@@ -96,18 +96,24 @@ public class SOOPLive {
         try {
             JsonObject json = JsonParser.parseString(body).getAsJsonObject();
 
-            int result = getInt(json, "RESULT", 0);
-
-            if (result != 1) {
-                String reason = getString(json, "REASON", "unknown error");
-                throw new SOOPChatException("API error: " + reason);
-            }
-
             if (!json.has("CHANNEL")) {
+                int result = getInt(json, "RESULT", 0);
+                if (result != 1) {
+                    String reason = getString(json, "REASON", "unknown error");
+                    throw new SOOPChatException("API error: " + reason);
+                }
                 throw new SOOPChatException("Response does not contain CHANNEL information");
             }
 
             JsonObject channel = json.getAsJsonObject("CHANNEL");
+
+            int result = getInt(channel, "RESULT", getInt(json, "RESULT", 0));
+
+            if (result != 1) {
+                String reason =
+                        getString(channel, "REASON", getString(json, "REASON", "unknown error"));
+                throw new SOOPChatException("API error: " + reason);
+            }
 
             validateField(channel, "BJID");
             validateField(channel, "TITLE");

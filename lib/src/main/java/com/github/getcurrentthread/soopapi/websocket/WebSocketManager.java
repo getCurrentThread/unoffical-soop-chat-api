@@ -136,17 +136,7 @@ public class WebSocketManager implements AutoCloseable {
         return ws.sendText(connectPacket, true)
                 .thenCompose(
                         _ -> {
-                            LOGGER.fine("Connect packet sent successfully");
-                            CompletableFuture<Void> delay = new CompletableFuture<>();
-                            scheduler.schedule(
-                                    () -> delay.complete(null),
-                                    config.getInitialPacketDelayMs(),
-                                    TimeUnit.MILLISECONDS);
-                            return delay;
-                        })
-                .thenCompose(
-                        _ -> {
-                            LOGGER.fine("Sending join packet...");
+                            LOGGER.info("Connect packet sent successfully, sending join packet...");
                             WsState current = wsState.get();
                             WebSocket currentWs = current.ws();
                             if (currentWs == null) {
@@ -155,13 +145,10 @@ public class WebSocketManager implements AutoCloseable {
                             }
                             return currentWs.sendText(joinPacket, true);
                         })
-                .thenRun(() -> LOGGER.fine("Join packet sent successfully"));
+                .thenRun(() -> LOGGER.info("Join packet sent successfully"));
     }
 
-    /**
-     * 단일 재시도를 스케줄링합니다. 실패 시 다음 재시도를 스케줄링합니다 (connect()를 통한
-     * 재귀가 아닌 반복 방식).
-     */
+    /** 단일 재시도를 스케줄링합니다. 실패 시 다음 재시도를 스케줄링합니다 (connect()를 통한 재귀가 아닌 반복 방식). */
     private void scheduleRetry(
             ChannelInfo channelInfo,
             Throwable throwable,
@@ -241,10 +228,7 @@ public class WebSocketManager implements AutoCloseable {
                 TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * 재시도 로직 없이 단일 WebSocket 연결을 시도합니다. 재귀적 connect() 호출을 피하기 위해
-     * scheduleRetry()에서 사용됩니다.
-     */
+    /** 재시도 로직 없이 단일 WebSocket 연결을 시도합니다. 재귀적 connect() 호출을 피하기 위해 scheduleRetry()에서 사용됩니다. */
     private CompletableFuture<Void> doSingleConnectAttempt(ChannelInfo channelInfo) {
         currentChannelInfo.set(channelInfo);
         CompletableFuture<Void> connectionFuture = new CompletableFuture<>();
