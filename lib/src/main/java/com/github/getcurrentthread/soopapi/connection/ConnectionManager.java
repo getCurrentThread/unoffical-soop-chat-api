@@ -12,7 +12,10 @@ import com.github.getcurrentthread.soopapi.model.ConnectionStatus;
 
 public class ConnectionManager {
     private static final Logger LOGGER = Logger.getLogger(ConnectionManager.class.getName());
-    private static final StableValue<ConnectionManager> INSTANCE = StableValue.of();
+
+    private static final class Holder {
+        static final ConnectionManager INSTANCE = new ConnectionManager();
+    }
 
     private final ExecutorService messageProcessorPool;
     private final ScheduledExecutorService sharedScheduler;
@@ -54,7 +57,7 @@ public class ConnectionManager {
     }
 
     public static ConnectionManager getInstance() {
-        return INSTANCE.orElseSet(ConnectionManager::new);
+        return Holder.INSTANCE;
     }
 
     public CompletableFuture<SOOPConnection> connect(
@@ -126,20 +129,21 @@ public class ConnectionManager {
         isShutdown = true;
         return CompletableFuture.runAsync(
                 () -> {
-                    try (var scope = StructuredTaskScope.open()) {
-                        connections
-                                .values()
-                                .forEach(
-                                        conn ->
-                                                scope.fork(
-                                                        () -> {
-                                                            conn.disconnect();
-                                                            return null;
-                                                        }));
-                        scope.join();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        LOGGER.log(Level.WARNING, "Interrupted during shutdown", e);
+                    try (var disconnectExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+                        for (SOOPConnection conn : connections.values()) {
+                            disconnectExecutor.submit(
+                                    () -> {
+                                        try {
+                                            conn.disconnect();
+                                        } catch (Exception e) {
+                                            LOGGER.log(
+                                                    Level.WARNING,
+                                                    "Error disconnecting during shutdown",
+                                                    e);
+                                        }
+                                        return null;
+                                    });
+                        }
                     }
                     connections.clear();
                     shutdownExecutors();

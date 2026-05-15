@@ -10,10 +10,13 @@ import com.github.getcurrentthread.soopapi.exception.ConnectionException;
 
 public class SSLContextProvider {
     private static final Logger LOGGER = Logger.getLogger(SSLContextProvider.class.getName());
-    private static final StableValue<SSLContext> INSTANCE = StableValue.of();
+
+    private static final class Holder {
+        static final SSLContext INSTANCE = createSSLContext();
+    }
 
     public static SSLContext getInstance() {
-        return INSTANCE.orElseSet(SSLContextProvider::createSSLContext);
+        return Holder.INSTANCE;
     }
 
     private static SSLContext createSSLContext() {

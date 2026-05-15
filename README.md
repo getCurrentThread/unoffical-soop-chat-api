@@ -22,18 +22,6 @@
 
 - Java 25 이상
 - Gradle 9.3.1 이상
-- `--enable-preview` 플래그 필요 (Preview 기능 사용: Stable Values, Structured Concurrency)
-
-> **참고**: 이 라이브러리는 JDK 25 Preview 기능을 사용합니다. 소비자 프로젝트에서도 컴파일 및 실행 시 `--enable-preview` 플래그를 추가해야 합니다.
->
-> ```gradle
-> tasks.withType(JavaCompile) {
->     options.compilerArgs.addAll(['--enable-preview'])
-> }
-> test {
->     jvmArgs(['--enable-preview'])
-> }
-> ```
 
 ## 설치
 
@@ -45,7 +33,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.7.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.8.0'
 }
 ```
 

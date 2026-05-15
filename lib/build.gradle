@@ -50,14 +50,12 @@ publishing {
 }
 
 tasks.withType(Javadoc) {
-    options.addBooleanOption('-enable-preview', true)
     options.addStringOption('source', '25')
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
-    options.compilerArgs.addAll(['--enable-preview', '-Xlint:-preview'])
     dependsOn 'spotlessApply'
 }
 
@@ -67,11 +65,9 @@ tasks.register('collectFixtures', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.github.getcurrentthread.soopapi.DataCollector'
     args = ['--fixtures']
-    jvmArgs = ['--enable-preview']
 }
 
 test {
-    jvmArgs(['--enable-preview'])
     useJUnitPlatform {
         excludeTags 'integration'
     }

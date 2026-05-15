@@ -6,9 +6,9 @@
 ## 핵심 정보
 
 - GitHub: https://github.com/getCurrentThread/soopapi
-- 버전: v0.7.0
+- 버전: v0.8.0
 - 라이선스: MIT
-- 언어: Java 25 이상 (--enable-preview 필요)
+- 언어: Java 25 이상
 - 빌드: Gradle 9.3.1
 - 배포: JitPack (com.github.getCurrentThread:soopapi)
 - 런타임 의존성: Gson
@@ -23,21 +23,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.7.0'
-}
-```
-
-### --enable-preview 설정 (필수)
-
-이 라이브러리는 JDK 25 Preview 기능(Stable Values, Structured Concurrency)을 사용합니다.
-소비자 프로젝트에서도 컴파일 및 실행 시 아래 설정이 필요합니다.
-
-```gradle
-tasks.withType(JavaCompile) {
-    options.compilerArgs.addAll(['--enable-preview'])
-}
-test {
-    jvmArgs(['--enable-preview'])
+    implementation 'com.github.getCurrentThread:soopapi:v0.8.0'
 }
 ```
 

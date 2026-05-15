@@ -136,7 +136,15 @@ public enum ChatEvent {
     // ── 알 수 없는 타입 ──
     NONE_TYPE(-1, "Unknown Type");
 
-    private static final StableValue<Map<Integer, ChatEvent>> CODE_MAP = StableValue.of();
+    private static final Map<Integer, ChatEvent> CODE_MAP;
+
+    static {
+        var map = new HashMap<Integer, ChatEvent>();
+        for (ChatEvent e : values()) {
+            map.put(e.code, e);
+        }
+        CODE_MAP = Map.copyOf(map);
+    }
 
     private final int code;
     private final String description;
@@ -147,15 +155,7 @@ public enum ChatEvent {
     }
 
     public static ChatEvent fromCode(int code) {
-        return CODE_MAP.orElseSet(
-                        () -> {
-                            var map = new HashMap<Integer, ChatEvent>();
-                            for (ChatEvent e : values()) {
-                                map.put(e.code, e);
-                            }
-                            return Map.copyOf(map);
-                        })
-                .getOrDefault(code, NONE_TYPE);
+        return CODE_MAP.getOrDefault(code, NONE_TYPE);
     }
 
     public int getCode() {
