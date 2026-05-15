@@ -14,6 +14,8 @@ import com.github.getcurrentthread.soopapi.event.EventEmitter;
 import com.github.getcurrentthread.soopapi.event.EventListener;
 import com.github.getcurrentthread.soopapi.event.model.BaseEvent;
 import com.github.getcurrentthread.soopapi.event.model.DisconnectedEvent;
+import com.github.getcurrentthread.soopapi.event.model.ReconnectedEvent;
+import com.github.getcurrentthread.soopapi.event.model.ReconnectingEvent;
 import com.github.getcurrentthread.soopapi.exception.AuthenticationException;
 import com.github.getcurrentthread.soopapi.exception.ConnectionException;
 import com.github.getcurrentthread.soopapi.model.ConnectionStatus;
@@ -158,6 +160,11 @@ public class SOOPChatClient implements AutoCloseable {
         return conn.sendChat(message);
     }
 
+    /**
+     * 현재 연결 위에서 가벼운 재연결을 수행합니다.
+     *
+     * <p>초기 연결이 형성되지 않았거나 자동 backoff 진행 중에 강제로 처음부터 다시 시작하려면 {@link #forceReconnect()}를 사용하세요.
+     */
     public CompletableFuture<Void> reconnect() {
         SOOPConnection conn = this.connection;
         if (conn == null) {
@@ -174,6 +181,55 @@ public class SOOPChatClient implements AutoCloseable {
                             LOGGER.log(Level.SEVERE, "Reconnect failed", e);
                             throw new CompletionException(e);
                         });
+    }
+
+    /**
+     * 현재 연결 상태와 무관하게 tear-down + 새 연결을 강제 실행합니다.
+     *
+     * <p>동작 순서:
+     *
+     * <ol>
+     *   <li>{@link ChatEvent#RECONNECTING} 이벤트를 emit ({@code attemptNumber=1, maxAttempts=1,
+     *       delayMs=0})
+     *   <li>{@code ConnectionManager}에서 해당 bid를 강제 disconnect (진행 중인 backoff/reconnect 무시)
+     *   <li>{@code connectToChat()}으로 완전히 새 연결 시작
+     *   <li>첫 {@link ChatEvent#JOIN_CHANNEL} 수신 시 {@link ChatEvent#RECONNECTED} 이벤트 emit
+     * </ol>
+     *
+     * @return 새 연결이 disconnect될 때 완료되는 future
+     */
+    public CompletableFuture<Void> forceReconnect() {
+        eventEmitter.emit(
+                ChatEvent.RECONNECTING,
+                new ReconnectingEvent(
+                        1, 1, 0L, ChatEvent.RECONNECTING, "", System.currentTimeMillis()));
+
+        connectLock.lock();
+        try {
+            try {
+                connectionManager.disconnect(config.getBid()).join();
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Error during force reconnect tear-down", e);
+            }
+            isConnected = false;
+            connection = null;
+            if (disconnectFuture != null && !disconnectFuture.isDone()) {
+                disconnectFuture.complete(null);
+            }
+            eventEmitter.clearInternal();
+        } finally {
+            connectLock.unlock();
+        }
+
+        eventEmitter.once(
+                ChatEvent.JOIN_CHANNEL,
+                e ->
+                        eventEmitter.emit(
+                                ChatEvent.RECONNECTED,
+                                new ReconnectedEvent(
+                                        1, ChatEvent.RECONNECTED, "", System.currentTimeMillis())));
+
+        return connectToChat();
     }
 
     public CompletableFuture<ConnectionStatus> getConnectionStatus() {

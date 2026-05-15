@@ -61,18 +61,24 @@ public class SOOPClient implements AutoCloseable {
     }
 
     /**
-     * 기본 설정으로 채팅 클라이언트를 등록합니다.
+     * 기본 설정으로 채팅 클라이언트를 등록하고 즉시 비동기 연결을 시작합니다.
      *
-     * <p>동일 {@code streamerId}로 이미 등록된 클라이언트가 있으면 기존 인스턴스를 반환합니다(중복 등록 방지).
+     * <p>동일 {@code streamerId}로 이미 등록된 클라이언트가 있으면 기존 인스턴스를 반환합니다(중복 등록 방지). 이전에 {@code
+     * disconnect()} 되었던 인스턴스라면 자동으로 재연결됩니다.
      */
     public SOOPChatClient add(String streamerId) {
         return add(new SOOPChatConfig.Builder().bid(streamerId).build());
     }
 
     /**
-     * 주어진 설정으로 채팅 클라이언트를 등록합니다.
+     * 주어진 설정으로 채팅 클라이언트를 등록하고 즉시 비동기 연결을 시작합니다.
      *
      * <p>{@code config.getBid()} 기준으로 dedup됩니다. 이미 등록된 bid면 <b>기존</b> 인스턴스를 반환하며 전달된 config는 무시됩니다.
+     * 반환된 인스턴스의 {@code connectToChat()}이 자동 호출되므로 호출자는 별도로 연결을 시작할 필요가 없습니다.
+     *
+     * <p>연결 실패는 SEVERE 로그로 남고 {@code DISCONNECTED} 이벤트가 {@code causedByError=true}로 emit됩니다. 명시적으로
+     * 실패 future가 필요하다면 반환된 클라이언트에서 {@code connectToChat()}을 다시 호출하면 동일한 disconnect future를 받을 수
+     * 있습니다.
      */
     public SOOPChatClient add(SOOPChatConfig config) {
         if (config == null) {
@@ -82,19 +88,22 @@ public class SOOPClient implements AutoCloseable {
         if (bid == null || bid.isBlank()) {
             throw new IllegalArgumentException("bid must not be null or blank");
         }
+        SOOPChatClient client;
         lock.lock();
         try {
             SOOPChatClient existing = chatClients.get(bid);
             if (existing != null) {
-                return existing;
+                client = existing;
+            } else {
+                client = new SOOPChatClient(config);
+                attachGlobalSubs(bid, client);
+                chatClients.put(bid, client);
             }
-            SOOPChatClient client = new SOOPChatClient(config);
-            attachGlobalSubs(bid, client);
-            chatClients.put(bid, client);
-            return client;
         } finally {
             lock.unlock();
         }
+        client.connectToChat();
+        return client;
     }
 
     /**
@@ -134,7 +143,45 @@ public class SOOPClient implements AutoCloseable {
         return Collections.unmodifiableCollection(new LinkedHashMap<>(chatClients).values());
     }
 
-    /** 등록된 모든 클라이언트의 {@code connectToChat()}을 호출하고, <b>모두</b> 종료될 때 완료되는 future를 반환합니다. */
+    /**
+     * 등록된 스트림에 대해 tear-down + 새 연결로 강제 재연결합니다.
+     *
+     * <p>현재 연결 상태(연결 안 됨/연결 중/backoff 중)와 무관하게 즉시 처음부터 다시 시도합니다. 자세한 동작은 {@link
+     * SOOPChatClient#forceReconnect()} 참고.
+     *
+     * @return 새 연결이 disconnect될 때 완료되는 future. 등록되지 않은 bid면 {@link IllegalArgumentException}으로 실패.
+     */
+    public CompletableFuture<Void> reconnect(String streamerId) {
+        SOOPChatClient client = chatClients.get(streamerId);
+        if (client == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("Unknown streamerId: " + streamerId));
+        }
+        return client.forceReconnect();
+    }
+
+    /** 등록된 모든 스트림에 대해 강제 재연결을 수행하고 모두 disconnect될 때까지 대기하는 future를 반환합니다. */
+    public CompletableFuture<Void> reconnectAll() {
+        Collection<SOOPChatClient> snapshot;
+        lock.lock();
+        try {
+            snapshot = List.copyOf(chatClients.values());
+        } finally {
+            lock.unlock();
+        }
+        CompletableFuture<?>[] futures =
+                snapshot.stream()
+                        .map(SOOPChatClient::forceReconnect)
+                        .toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(futures);
+    }
+
+    /**
+     * 등록된 모든 클라이언트의 disconnect를 기다리는 future를 반환합니다.
+     *
+     * <p>{@link #add(String)}이 이미 연결을 시작하므로 이 메서드는 실질적으로 <i>"모든 연결이 끝날 때까지 대기"</i> 역할을 합니다. 내부적으로
+     * {@code connectToChat()}을 재호출하지만 idempotent하므로 부작용은 없습니다.
+     */
     public CompletableFuture<Void> connectAll() {
         Collection<SOOPChatClient> snapshot;
         lock.lock();

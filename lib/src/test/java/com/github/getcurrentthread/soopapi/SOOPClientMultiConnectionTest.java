@@ -3,7 +3,10 @@ package com.github.getcurrentthread.soopapi;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -16,6 +19,7 @@ import com.github.getcurrentthread.soopapi.client.SOOPChatClient;
 import com.github.getcurrentthread.soopapi.event.ChatEvent;
 import com.github.getcurrentthread.soopapi.event.StreamEventListener;
 import com.github.getcurrentthread.soopapi.event.model.ChatMessageEvent;
+import com.github.getcurrentthread.soopapi.event.model.ReconnectingEvent;
 
 public class SOOPClientMultiConnectionTest {
 
@@ -165,5 +169,67 @@ public class SOOPClientMultiConnectionTest {
 
         client.remove("b");
         assertEquals(Set.of("a", "c"), client.streamerIds());
+    }
+
+    @Test
+    public void reconnect_unknown_returnsFailedFuture() {
+        CompletableFuture<Void> f = client.reconnect("nonexistent");
+        assertTrue(f.isCompletedExceptionally());
+        ExecutionException ex = assertThrows(ExecutionException.class, f::get);
+        assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+    }
+
+    @Test
+    public void reconnect_existing_emitsReconnecting() throws Exception {
+        SOOPChatClient a = client.add("streamerA");
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ReconnectingEvent> received = new AtomicReference<>();
+        a.on(
+                ChatEvent.RECONNECTING,
+                (ReconnectingEvent e) -> {
+                    received.set(e);
+                    latch.countDown();
+                });
+
+        // forceReconnect의 disconnect future는 새 connect 실패로 끝나므로 무시
+        try {
+            client.reconnect("streamerA");
+        } catch (CompletionException ignored) {
+        }
+
+        assertTrue(latch.await(2, TimeUnit.SECONDS), "RECONNECTING should be emitted");
+        assertEquals(1, received.get().attemptNumber());
+        assertEquals(1, received.get().maxAttempts());
+        assertEquals(0L, received.get().delayMs());
+    }
+
+    @Test
+    public void reconnectAll_emitsForEachStream() throws Exception {
+        SOOPChatClient a = client.add("streamerA");
+        SOOPChatClient b = client.add("streamerB");
+
+        CountDownLatch latch = new CountDownLatch(2);
+        AtomicInteger total = new AtomicInteger();
+        a.on(
+                ChatEvent.RECONNECTING,
+                (ReconnectingEvent e) -> {
+                    total.incrementAndGet();
+                    latch.countDown();
+                });
+        b.on(
+                ChatEvent.RECONNECTING,
+                (ReconnectingEvent e) -> {
+                    total.incrementAndGet();
+                    latch.countDown();
+                });
+
+        try {
+            client.reconnectAll();
+        } catch (CompletionException ignored) {
+        }
+
+        assertTrue(latch.await(2, TimeUnit.SECONDS), "Each stream should emit RECONNECTING");
+        assertEquals(2, total.get());
     }
 }

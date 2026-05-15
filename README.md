@@ -34,7 +34,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.9.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.10.0'
 }
 ```
 
@@ -68,64 +68,70 @@ import com.github.getcurrentthread.soopapi.event.model.*;
 
 public class Example {
     public static void main(String[] args) throws Exception {
-        SOOPClient client = new SOOPClient();
+        try (SOOPClient client = new SOOPClient()) {
+            // 방송 정보 조회
+            LiveDetail detail = client.live().detail("streamerId").join();
+            System.out.println("방송 제목: " + detail.title());
 
-        // 방송 정보 조회
-        LiveDetail detail = client.live().detail("streamerId").join();
-        System.out.println("방송 제목: " + detail.title());
+            // 채널 정보 조회
+            StationInfo station = client.channel().station("streamerId").join();
+            System.out.println("스테이션: " + station.stationName());
 
-        // 채널 정보 조회
-        StationInfo station = client.channel().station("streamerId").join();
-        System.out.println("스테이션: " + station.stationName());
+            // 글로벌 리스너 먼저 등록 — 이후 추가되는 스트림에 자동 attach됨
+            client.on(ChatEvent.CHAT_MESSAGE, (bid, ChatMessageEvent e) -> {
+                System.out.println("[" + bid + "] " + e.senderNickname() + ": " + e.message());
+            });
 
-        // 채팅 연결 (이벤트 기반)
-        // 단일 스트리머 편의 메서드 — 다중 연결은 add() 사용 권장
-        SOOPChatClient chat = client.chat("streamerId");
+            client.on(ChatEvent.SEND_BALLOON, (bid, SendBalloonEvent e) -> {
+                System.out.println("[" + bid + "] " + e.senderNickname()
+                        + "님이 풍선 " + e.count() + "개 선물!");
+            });
 
-        chat.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
-            System.out.println(e.senderNickname() + ": " + e.message());
-        });
+            // add() 호출 즉시 비동기 연결이 시작됩니다 (별도 connectToChat() 불필요)
+            client.add("streamerId");
 
-        chat.on(ChatEvent.SEND_BALLOON, (SendBalloonEvent e) -> {
-            System.out.println(e.senderNickname() + "님이 풍선 " + e.count() + "개 선물!");
-        });
-
-        chat.on(ChatEvent.SEND_SUBSCRIPTION, (SendSubscriptionEvent e) -> {
-            System.out.println("구독 이벤트: " + e);
-        });
-
-        // connectToChat().join()은 연결이 해제될 때까지 블로킹됩니다
-        chat.connectToChat().join();
+            // 등록된 모든 연결이 해제될 때까지 블로킹
+            client.connectAll().join();
+        }
     }
 }
 ```
 
 ### 다중 채팅 연결
 
-`SOOPClient`는 여러 스트리머에 대한 채팅 연결을 한 곳에서 관리할 수 있는 매니저로 동작합니다. `add()`는 bid 기준으로 dedup되므로 같은 스트리머로 두 번 호출해도 동일 인스턴스를 반환합니다. `on()`으로 등록한 글로벌 리스너는 **현재 등록된 모든 스트림과 이후 추가되는 스트림**에 자동으로 attach되며, 핸들러는 어떤 스트리머에서 발생한 이벤트인지를 첫 번째 인자로 받습니다.
+`SOOPClient`는 여러 스트리머에 대한 채팅 연결을 한 곳에서 관리합니다. **`add()` 호출 즉시 비동기 연결이 시작되며**, 사용자는 별도의 `connectToChat()`을 부르지 않아도 됩니다. `add()`는 bid 기준으로 dedup되며, `on()`으로 등록한 글로벌 리스너는 **현재 등록된 모든 스트림과 이후 추가되는 스트림**에 자동으로 attach됩니다. 핸들러는 어떤 스트리머에서 발생한 이벤트인지를 첫 번째 인자로 받습니다.
 
 ```java
-SOOPClient client = new SOOPClient();
+try (SOOPClient client = new SOOPClient()) {
+    // 글로벌 리스너 먼저 등록 — 이후 add()되는 스트림에도 자동 적용
+    client.on(ChatEvent.CHAT_MESSAGE, (bid, ChatMessageEvent e) -> {
+        System.out.println("[" + bid + "] " + e.senderNickname() + ": " + e.message());
+    });
 
-// 여러 스트리머 등록 (동일 bid 재호출 시 기존 인스턴스 반환)
-client.add("streamerA");
-client.add("streamerB");
-client.add("streamerA"); // no-op: 같은 인스턴스를 반환
+    // 연결 실패/끊김 추적
+    client.on(ChatEvent.DISCONNECTED, (bid, DisconnectedEvent e) -> {
+        if (e.causedByError()) {
+            System.err.println("[" + bid + "] 연결 오류로 끊김: " + e.reason());
+        }
+    });
 
-// streamerId를 함께 받는 글로벌 리스너 — 모든 스트림에 자동 attach
-client.on(ChatEvent.CHAT_MESSAGE, (String streamerId, ChatMessageEvent e) -> {
-    System.out.println("[" + streamerId + "] " + e.senderNickname() + ": " + e.message());
-});
+    // 등록 즉시 자동 연결됨 — 호출 순서/타이밍은 자유
+    client.add("streamerA");
+    client.add("streamerB");
+    client.add("streamerA"); // dedup: 기존 인스턴스 반환, no-op
 
-// 이후 추가되는 스트림에도 위 리스너가 자동으로 propagate됩니다
-client.add("streamerC");
+    // 런타임 중 추가/제거 자유
+    Thread.sleep(5_000);
+    client.add("streamerC");            // 자동 연결
+    client.reconnect("streamerA");      // 강제 재연결 (tear-down + 새 연결)
+    client.remove("streamerB");         // disconnect + 등록 해제
 
-// 등록 해제 + 연결 종료
-client.remove("streamerB");
-
-// 모든 등록된 클라이언트를 연결, 모두 해제될 때 완료되는 future 반환
-client.connectAll().join();
+    // 등록된 모든 연결이 해제될 때까지 대기
+    client.connectAll().join();
+}
 ```
+
+> **권장 패턴**: 글로벌 리스너(`client.on(...)`)를 `add()`보다 먼저 등록하면 초기 이벤트(LOGIN/JOIN_CHANNEL 등) 누락을 방지할 수 있습니다.
 
 개별 클라이언트 핸들 접근:
 
@@ -268,17 +274,23 @@ SOOPChatConfig config = new SOOPChatConfig.Builder()
         .build();
 ```
 
-## `connectToChat()` 동작 방식
+## 연결 라이프사이클
 
-v0.5.0부터 `connectToChat()`이 반환하는 `CompletableFuture`는 연결이 **해제**될 때 완료됩니다.
+`SOOPClient.add()`는 등록과 동시에 비동기 연결을 시작하므로 일반적으로 사용자가 직접 연결 메서드를 호출할 필요가 없습니다. 저수준 `SOOPChatClient`를 직접 사용하는 경우에만 아래 메서드를 사용합니다. `connectToChat()`이 반환하는 `CompletableFuture`는 v0.5.0부터 연결이 **해제**될 때 완료됩니다.
 
 | 메서드 | 동작 |
 |--------|------|
-| `connectToChat()` | 연결 해제 시 완료되는 `CompletableFuture<Void>` 반환 |
-| `connectToChat().join()` | 연결이 해제될 때까지 현재 스레드를 블로킹 |
-| `connectAndAwait()` | `connectToChat().join()`의 편의 메서드 (블로킹) |
-| `connectToChattingBlocking()` | **Deprecated** — `connectAndAwait()` 사용 권장 |
-| `SOOPClient.connectAll()` | 등록된 모든 클라이언트를 연결, <b>모두</b> 해제될 때 완료되는 `CompletableFuture<Void>` 반환 |
+| `SOOPClient.add(streamerId)` | 등록 + **즉시 비동기 연결**. 이미 등록된 bid면 기존 인스턴스 반환(필요 시 자동 재연결). |
+| `SOOPClient.connectAll()` | 등록된 모든 클라이언트의 disconnect를 대기하는 `CompletableFuture<Void>` 반환. |
+| `SOOPClient.reconnect(streamerId)` | tear-down + 새 연결로 **강제 재연결**. 현재 상태/backoff 무시. `RECONNECTING`→`DISCONNECTED`→`RECONNECTED` emit. |
+| `SOOPClient.reconnectAll()` | 등록된 모든 스트림에 대해 강제 재연결 수행 후 모두 disconnect될 때까지 대기. |
+| `SOOPClient.remove(streamerId)` | 개별 disconnect + 등록 해제. |
+| `SOOPClient.close()` | 모든 클라이언트 종료 + HTTP 리소스 해제. `try-with-resources` 권장. |
+| `SOOPChatClient.connectToChat()` | (저수준) 연결 해제 시 완료되는 `CompletableFuture<Void>` 반환. Idempotent. |
+| `SOOPChatClient.connectAndAwait()` | (저수준) `connectToChat().join()`의 편의 메서드 (블로킹). |
+| `SOOPChatClient.reconnect()` | (저수준) 현재 연결 위에서 가벼운 재연결. 초기 미연결 상태면 실패. |
+| `SOOPChatClient.forceReconnect()` | (저수준) 상태 무관하게 tear-down + 새 연결. `RECONNECTING`/`RECONNECTED` emit. |
+| `SOOPChatClient.connectToChattingBlocking()` | **Deprecated** — `connectAndAwait()` 사용 권장. |
 
 ## 이벤트 타입
 
