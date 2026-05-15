@@ -26,16 +26,25 @@ public class WebSocketManager implements AutoCloseable {
     private static final long INITIAL_RETRY_DELAY_MS = 2000;
     private static final long MAX_RETRY_DELAY_MS = 30000;
 
-    private record WsState(boolean connected, WebSocket ws, ScheduledFuture<?> ping) {}
+    private record WsState(WebSocket ws, ScheduledFuture<?> ping) {
+        static final WsState EMPTY = new WsState(null, null);
+
+        boolean isConnected() {
+            return ws != null;
+        }
+
+        WsState withPing(ScheduledFuture<?> p) {
+            return new WsState(ws, p);
+        }
+    }
 
     private final SOOPChatConfig config;
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final WebSocketListener listener;
     private final EventEmitter eventEmitter;
-    private final AtomicReference<WsState> wsState =
-            new AtomicReference<>(new WsState(false, null, null));
-    private final AtomicInteger retryCount;
+    private final AtomicReference<WsState> wsState = new AtomicReference<>(WsState.EMPTY);
+    private final AtomicInteger retryCount = new AtomicInteger(0);
     private final AtomicReference<ChannelInfo> currentChannelInfo = new AtomicReference<>();
     private final AtomicReference<CompletableFuture<Void>> reconnectFuture =
             new AtomicReference<>();
@@ -50,7 +59,6 @@ public class WebSocketManager implements AutoCloseable {
         this.scheduler = scheduler;
         this.listener = listener;
         this.eventEmitter = Objects.requireNonNull(eventEmitter, "eventEmitter");
-        this.retryCount = new AtomicInteger(0);
 
         SSLContext ssl = sslContext != null ? sslContext : SSLContextProvider.getInstance();
         this.httpClient =
@@ -62,13 +70,12 @@ public class WebSocketManager implements AutoCloseable {
     }
 
     /**
-     * WebSocket에 연결합니다.
+     * WebSocket에 연결합니다. 실패 시 자동 재시도가 적용됩니다.
      *
      * @param channelInfo 연결할 채널 정보
      * @return 연결이 수립되면 완료되는 CompletableFuture
      */
     public CompletableFuture<Void> connect(ChannelInfo channelInfo) {
-        currentChannelInfo.set(channelInfo);
         LOGGER.fine(
                 () ->
                         "Attempting to connect to WebSocket: "
@@ -77,41 +84,50 @@ public class WebSocketManager implements AutoCloseable {
                                 + channelInfo.CHPT());
 
         CompletableFuture<Void> connectionFuture = new CompletableFuture<>();
-
-        try {
-            URI uri = buildWebSocketUri(channelInfo);
-            LOGGER.fine(() -> "Connecting to URI: " + uri);
-
-            httpClient
-                    .newWebSocketBuilder()
-                    .subprotocols("chat")
-                    .connectTimeout(config.getConnectionTimeout())
-                    .buildAsync(uri, listener)
-                    .thenAccept(
-                            ws -> {
-                                try {
-                                    LOGGER.info("WebSocket connection established");
-                                    handleConnectionSuccess(ws, channelInfo, connectionFuture);
-                                } catch (Exception e) {
-                                    LOGGER.log(Level.SEVERE, "Error during connection setup", e);
-                                    connectionFuture.completeExceptionally(e);
-                                }
-                            })
-                    .exceptionally(
-                            throwable -> {
+        attemptConnect(channelInfo)
+                .whenComplete(
+                        (unused, err) -> {
+                            if (err == null) {
+                                connectionFuture.complete(null);
+                            } else {
                                 LOGGER.log(
                                         Level.SEVERE,
                                         "Failed to establish WebSocket connection",
-                                        throwable);
-                                scheduleRetry(channelInfo, throwable, connectionFuture);
-                                return null;
-                            });
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error initiating WebSocket connection", e);
-            connectionFuture.completeExceptionally(e);
-        }
-
+                                        err);
+                                scheduleRetry(channelInfo, err, connectionFuture);
+                            }
+                        });
         return connectionFuture;
+    }
+
+    /** 재시도 없는 단일 연결 시도. {@link #connect(ChannelInfo)}와 {@link #scheduleRetry}가 공유한다. */
+    private CompletableFuture<Void> attemptConnect(ChannelInfo channelInfo) {
+        currentChannelInfo.set(channelInfo);
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        openSocket(channelInfo)
+                .whenComplete(
+                        (ws, err) -> {
+                            if (err != null) {
+                                done.completeExceptionally(err);
+                            } else {
+                                handleConnectionSuccess(ws, channelInfo, done);
+                            }
+                        });
+        return done;
+    }
+
+    private CompletableFuture<WebSocket> openSocket(ChannelInfo channelInfo) {
+        try {
+            var uri = buildWebSocketUri(channelInfo);
+            LOGGER.fine(() -> "Connecting to URI: " + uri);
+            return httpClient
+                    .newWebSocketBuilder()
+                    .subprotocols("chat")
+                    .connectTimeout(config.getConnectionTimeout())
+                    .buildAsync(uri, listener);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
     }
 
     private CompletableFuture<Void> sendInitialPackets(ChannelInfo channelInfo) {
@@ -126,24 +142,13 @@ public class WebSocketManager implements AutoCloseable {
         String connectPacket = WebSocketPacketBuilder.createConnectPacket(authTicket);
         String joinPacket = WebSocketPacketBuilder.createJoinPacket(channelInfo, authTicket, uuid);
 
-        WsState state = wsState.get();
-        WebSocket ws = state.ws();
-        if (ws == null) {
-            return CompletableFuture.failedFuture(
-                    new IllegalStateException("WebSocket is not connected"));
-        }
-
-        return ws.sendText(connectPacket, true)
+        return requireActiveSocket()
+                .thenCompose(ws -> ws.sendText(connectPacket, true))
                 .thenCompose(
                         _ -> {
                             LOGGER.info("Connect packet sent successfully, sending join packet...");
-                            WsState current = wsState.get();
-                            WebSocket currentWs = current.ws();
-                            if (currentWs == null) {
-                                return CompletableFuture.failedFuture(
-                                        new IllegalStateException("WebSocket disconnected"));
-                            }
-                            return currentWs.sendText(joinPacket, true);
+                            return requireActiveSocket()
+                                    .thenCompose(ws -> ws.sendText(joinPacket, true));
                         })
                 .thenRun(() -> LOGGER.info("Join packet sent successfully"));
     }
@@ -166,92 +171,47 @@ public class WebSocketManager implements AutoCloseable {
         }
 
         long delay = calculateExponentialBackoff(currentRetry);
-
         LOGGER.fine(
-                "Attempting retry "
-                        + currentRetry
-                        + " of "
-                        + config.getMaxRetryAttempts()
-                        + " in "
-                        + delay
-                        + "ms");
+                () ->
+                        "Attempting retry %d of %d in %dms"
+                                .formatted(currentRetry, config.getMaxRetryAttempts(), delay));
 
-        eventEmitter.emit(
-                ChatEvent.RECONNECTING,
-                new ReconnectingEvent(
-                        currentRetry,
-                        config.getMaxRetryAttempts(),
-                        delay,
-                        ChatEvent.RECONNECTING,
-                        "",
-                        System.currentTimeMillis()));
+        emitReconnecting(currentRetry, delay);
 
-        CompletableFuture<Void> newFuture = new CompletableFuture<>();
+        var newFuture = new CompletableFuture<Void>();
         reconnectFuture.set(newFuture);
 
         scheduler.schedule(
-                () -> {
-                    try {
-                        doSingleConnectAttempt(channelInfo)
-                                .thenRun(
-                                        () -> {
-                                            CompletableFuture<Void> rf = reconnectFuture.get();
-                                            if (rf != null) {
-                                                rf.complete(null);
-                                            }
-                                            eventEmitter.emit(
-                                                    ChatEvent.RECONNECTED,
-                                                    new ReconnectedEvent(
-                                                            currentRetry,
-                                                            ChatEvent.RECONNECTED,
-                                                            "",
-                                                            System.currentTimeMillis()));
-                                            if (!connectionFuture.isDone()) {
-                                                connectionFuture.complete(null);
-                                            }
-                                        })
-                                .exceptionally(
-                                        e -> {
-                                            LOGGER.log(Level.SEVERE, "Retry attempt failed", e);
-                                            scheduleRetry(channelInfo, e, connectionFuture);
-                                            return null;
-                                        });
-                    } catch (Exception e) {
-                        LOGGER.log(Level.SEVERE, "Error during reconnection", e);
-                        CompletableFuture<Void> rf = reconnectFuture.get();
-                        if (rf != null) {
-                            rf.completeExceptionally(e);
-                        }
-                    }
-                },
+                () -> runScheduledRetry(channelInfo, connectionFuture, currentRetry, newFuture),
                 delay,
                 TimeUnit.MILLISECONDS);
     }
 
-    /** 재시도 로직 없이 단일 WebSocket 연결을 시도합니다. 재귀적 connect() 호출을 피하기 위해 scheduleRetry()에서 사용됩니다. */
-    private CompletableFuture<Void> doSingleConnectAttempt(ChannelInfo channelInfo) {
-        currentChannelInfo.set(channelInfo);
-        CompletableFuture<Void> connectionFuture = new CompletableFuture<>();
-
+    private void runScheduledRetry(
+            ChannelInfo channelInfo,
+            CompletableFuture<Void> connectionFuture,
+            int currentRetry,
+            CompletableFuture<Void> rf) {
         try {
-            URI uri = buildWebSocketUri(channelInfo);
-
-            httpClient
-                    .newWebSocketBuilder()
-                    .subprotocols("chat")
-                    .connectTimeout(config.getConnectionTimeout())
-                    .buildAsync(uri, listener)
-                    .thenAccept(ws -> handleConnectionSuccess(ws, channelInfo, connectionFuture))
+            attemptConnect(channelInfo)
+                    .thenRun(
+                            () -> {
+                                rf.complete(null);
+                                emitReconnected(currentRetry);
+                                if (!connectionFuture.isDone()) {
+                                    connectionFuture.complete(null);
+                                }
+                            })
                     .exceptionally(
-                            t -> {
-                                connectionFuture.completeExceptionally(t);
+                            e -> {
+                                LOGGER.log(Level.SEVERE, "Retry attempt failed", e);
+                                scheduleRetry(channelInfo, e, connectionFuture);
                                 return null;
                             });
         } catch (Exception e) {
-            connectionFuture.completeExceptionally(e);
+            LOGGER.log(Level.SEVERE, "Error during reconnection", e);
+            rf.completeExceptionally(e);
         }
-
-        return connectionFuture;
     }
 
     private URI buildWebSocketUri(ChannelInfo channelInfo) throws java.net.URISyntaxException {
@@ -273,7 +233,8 @@ public class WebSocketManager implements AutoCloseable {
 
     private void handleConnectionSuccess(
             WebSocket ws, ChannelInfo channelInfo, CompletableFuture<Void> connectionFuture) {
-        wsState.set(new WsState(true, ws, null));
+        LOGGER.info("WebSocket connection established");
+        wsState.set(new WsState(ws, null));
         retryCount.set(0);
 
         sendInitialPackets(channelInfo)
@@ -296,56 +257,57 @@ public class WebSocketManager implements AutoCloseable {
     }
 
     private void startPingScheduler() {
-        WsState current = wsState.get();
+        var current = wsState.get();
         if (current.ping() != null && !current.ping().isDone()) {
             current.ping().cancel(false);
         }
 
         long pingInterval = config.getPingIntervalSeconds();
         String pingPacket = WebSocketPacketBuilder.createPingPacket();
-        ScheduledFuture<?> newPingTask =
+        var newPingTask =
                 scheduler.scheduleWithFixedDelay(
-                        () -> {
-                            WsState state = wsState.get();
-                            if (state.connected() && state.ws() != null) {
-                                try {
-                                    LOGGER.fine("Sending ping packet");
-                                    state.ws().sendText(pingPacket, true).join();
-                                } catch (Exception e) {
-                                    LOGGER.log(Level.WARNING, "Error sending ping", e);
-                                    WsState s = wsState.get();
-                                    if (s.connected()) {
-                                        cleanupResources();
-                                        LOGGER.fine("Ping failed, attempting to reconnect");
-                                        emitReconnecting();
-                                        reconnect()
-                                                .thenRun(this::emitReconnected)
-                                                .exceptionally(
-                                                        ex -> {
-                                                            LOGGER.log(
-                                                                    Level.SEVERE,
-                                                                    "Ping-triggered reconnect"
-                                                                            + " failed",
-                                                                    ex);
-                                                            return null;
-                                                        });
-                                    }
-                                }
-                            }
-                        },
-                        pingInterval,
-                        pingInterval,
-                        TimeUnit.SECONDS);
+                        () -> tickPing(pingPacket), pingInterval, pingInterval, TimeUnit.SECONDS);
 
         // 새로운 ping 작업으로 상태를 원자적으로 업데이트하며, 정리(cleanup) 경쟁 상태를 확인
         wsState.updateAndGet(
                 s -> {
-                    if (!s.connected()) {
+                    if (!s.isConnected()) {
                         newPingTask.cancel(false);
                         return s;
                     }
-                    return new WsState(s.connected(), s.ws(), newPingTask);
+                    return s.withPing(newPingTask);
                 });
+    }
+
+    private void tickPing(String pingPacket) {
+        var state = wsState.get();
+        if (!state.isConnected()) {
+            return;
+        }
+        try {
+            LOGGER.fine("Sending ping packet");
+            state.ws().sendText(pingPacket, true).join();
+        } catch (Exception e) {
+            handlePingFailure(e);
+        }
+    }
+
+    private void handlePingFailure(Exception cause) {
+        LOGGER.log(Level.WARNING, "Error sending ping", cause);
+        if (!wsState.get().isConnected()) {
+            return;
+        }
+        cleanupResources();
+        LOGGER.fine("Ping failed, attempting to reconnect");
+        int attempt = Math.max(1, retryCount.get());
+        emitReconnecting(attempt, calculateExponentialBackoff(attempt));
+        reconnect()
+                .thenRun(() -> emitReconnected(retryCount.get()))
+                .exceptionally(
+                        ex -> {
+                            LOGGER.log(Level.SEVERE, "Ping-triggered reconnect failed", ex);
+                            return null;
+                        });
     }
 
     /**
@@ -354,14 +316,14 @@ public class WebSocketManager implements AutoCloseable {
      * @return 재연결이 성공하면 완료되는 CompletableFuture
      */
     public CompletableFuture<Void> reconnect() {
-        ChannelInfo channelInfo = currentChannelInfo.get();
+        var channelInfo = currentChannelInfo.get();
         if (channelInfo == null) {
             return CompletableFuture.failedFuture(
                     new IllegalStateException(
                             "No previous channel info available for reconnection"));
         }
 
-        CompletableFuture<Void> existing = reconnectFuture.get();
+        var existing = reconnectFuture.get();
         if (existing != null && !existing.isDone()) {
             return existing;
         }
@@ -371,8 +333,8 @@ public class WebSocketManager implements AutoCloseable {
     }
 
     public void disconnect() {
-        WsState state = wsState.get();
-        if (state.ws() != null) {
+        var state = wsState.get();
+        if (state.isConnected()) {
             try {
                 LOGGER.info("Initiating WebSocket disconnect");
                 state.ws().sendClose(WebSocket.NORMAL_CLOSURE, "Disconnecting");
@@ -386,30 +348,29 @@ public class WebSocketManager implements AutoCloseable {
 
     private void cleanupResources() {
         LOGGER.fine("Cleaning up WebSocket resources");
-        WsState old = wsState.getAndSet(new WsState(false, null, null));
+        var old = wsState.getAndSet(WsState.EMPTY);
         if (old.ping() != null) {
             old.ping().cancel(false);
         }
     }
 
-    private void emitReconnecting() {
-        int current = retryCount.get();
+    private void emitReconnecting(int attempt, long delayMs) {
         eventEmitter.emit(
                 ChatEvent.RECONNECTING,
                 new ReconnectingEvent(
-                        current,
+                        attempt,
                         config.getMaxRetryAttempts(),
-                        calculateExponentialBackoff(current),
+                        delayMs,
                         ChatEvent.RECONNECTING,
                         "",
                         System.currentTimeMillis()));
     }
 
-    private void emitReconnected() {
+    private void emitReconnected(int attempt) {
         eventEmitter.emit(
                 ChatEvent.RECONNECTED,
                 new ReconnectedEvent(
-                        retryCount.get(), ChatEvent.RECONNECTED, "", System.currentTimeMillis()));
+                        attempt, ChatEvent.RECONNECTED, "", System.currentTimeMillis()));
     }
 
     /**
@@ -418,12 +379,10 @@ public class WebSocketManager implements AutoCloseable {
      * @return 연결 상태
      */
     public CompletableFuture<WebSocketStatus> getStatus() {
-        if (!isConnected()) {
-            return CompletableFuture.completedFuture(
-                    new WebSocketStatus(false, retryCount.get(), config.getMaxRetryAttempts()));
-        }
+        boolean connected = isConnected();
         return CompletableFuture.completedFuture(
-                new WebSocketStatus(true, 0, config.getMaxRetryAttempts()));
+                new WebSocketStatus(
+                        connected, connected ? 0 : retryCount.get(), config.getMaxRetryAttempts()));
     }
 
     public record WebSocketStatus(boolean connected, int retryCount, int maxRetries) {}
@@ -435,32 +394,33 @@ public class WebSocketManager implements AutoCloseable {
     }
 
     public boolean isConnected() {
-        WsState state = wsState.get();
-        return state.connected() && state.ws() != null;
+        return wsState.get().isConnected();
+    }
+
+    private CompletableFuture<WebSocket> requireActiveSocket() {
+        var state = wsState.get();
+        return state.isConnected()
+                ? CompletableFuture.completedFuture(state.ws())
+                : CompletableFuture.failedFuture(
+                        new IllegalStateException("WebSocket is not connected"));
     }
 
     public CompletableFuture<Void> sendChat(String message) {
-        WsState state = wsState.get();
-        if (!state.connected() || state.ws() == null) {
-            return CompletableFuture.failedFuture(
-                    new IllegalStateException("WebSocket is not connected"));
-        }
         String packet = WebSocketPacketBuilder.createChatPacket(message);
-        return state.ws()
-                .sendText(packet, true)
-                .orTimeout(config.getConnectionTimeout().toMillis(), TimeUnit.MILLISECONDS)
+        return requireActiveSocket()
+                .thenCompose(
+                        ws ->
+                                ws.sendText(packet, true)
+                                        .orTimeout(
+                                                config.getConnectionTimeout().toMillis(),
+                                                TimeUnit.MILLISECONDS))
                 .thenRun(() -> {});
     }
 
     public CompletableFuture<Void> sendEnterInfo(String synAck) {
-        WsState state = wsState.get();
-        if (!state.connected() || state.ws() == null) {
-            return CompletableFuture.failedFuture(
-                    new IllegalStateException("WebSocket is not connected"));
-        }
         LOGGER.fine("Sending ENTER_INFO packet...");
         String packet = WebSocketPacketBuilder.createEnterInfoPacket(synAck);
-        return state.ws().sendText(packet, true).thenRun(() -> {});
+        return requireActiveSocket().thenCompose(ws -> ws.sendText(packet, true)).thenRun(() -> {});
     }
 
     public CompletableFuture<Void> getReconnectFuture() {

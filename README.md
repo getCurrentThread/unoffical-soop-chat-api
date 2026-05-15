@@ -34,7 +34,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.10.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.11.0'
 }
 ```
 
