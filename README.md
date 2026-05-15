@@ -13,6 +13,7 @@
 - **연결 상태 이벤트**: `DISCONNECTED`, `RECONNECTING`, `RECONNECTED` 이벤트로 연결 라이프사이클 추적
 - **Virtual Threads**: JDK 21+ Virtual Thread 기반 비동기 메시지 처리
 - **통합 API 클라이언트**: `SOOPClient` 파사드로 인증, 방송 정보, 채널 정보, 채팅을 통합 관리
+- **다중 채팅 연결**: bid 기준 dedup된 `add`/`remove`/`get` API와 `(streamerId, event)`를 함께 받는 글로벌 이벤트 리스너 지원
 - **채팅 전송 지원**: `sendChat()` 메서드로 채팅 메시지 전송
 - **익명(읽기 전용) 연결**: 인증 없이 채팅 수신 가능
 - WebSocket 기반 자동 재연결 및 핑 메커니즘
@@ -33,7 +34,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.8.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.9.0'
 }
 ```
 
@@ -78,6 +79,7 @@ public class Example {
         System.out.println("스테이션: " + station.stationName());
 
         // 채팅 연결 (이벤트 기반)
+        // 단일 스트리머 편의 메서드 — 다중 연결은 add() 사용 권장
         SOOPChatClient chat = client.chat("streamerId");
 
         chat.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
@@ -96,6 +98,41 @@ public class Example {
         chat.connectToChat().join();
     }
 }
+```
+
+### 다중 채팅 연결
+
+`SOOPClient`는 여러 스트리머에 대한 채팅 연결을 한 곳에서 관리할 수 있는 매니저로 동작합니다. `add()`는 bid 기준으로 dedup되므로 같은 스트리머로 두 번 호출해도 동일 인스턴스를 반환합니다. `on()`으로 등록한 글로벌 리스너는 **현재 등록된 모든 스트림과 이후 추가되는 스트림**에 자동으로 attach되며, 핸들러는 어떤 스트리머에서 발생한 이벤트인지를 첫 번째 인자로 받습니다.
+
+```java
+SOOPClient client = new SOOPClient();
+
+// 여러 스트리머 등록 (동일 bid 재호출 시 기존 인스턴스 반환)
+client.add("streamerA");
+client.add("streamerB");
+client.add("streamerA"); // no-op: 같은 인스턴스를 반환
+
+// streamerId를 함께 받는 글로벌 리스너 — 모든 스트림에 자동 attach
+client.on(ChatEvent.CHAT_MESSAGE, (String streamerId, ChatMessageEvent e) -> {
+    System.out.println("[" + streamerId + "] " + e.senderNickname() + ": " + e.message());
+});
+
+// 이후 추가되는 스트림에도 위 리스너가 자동으로 propagate됩니다
+client.add("streamerC");
+
+// 등록 해제 + 연결 종료
+client.remove("streamerB");
+
+// 모든 등록된 클라이언트를 연결, 모두 해제될 때 완료되는 future 반환
+client.connectAll().join();
+```
+
+개별 클라이언트 핸들 접근:
+
+```java
+SOOPChatClient a = client.get("streamerA");        // 없으면 null
+Set<String> ids = client.streamerIds();             // 등록된 bid 스냅샷
+Collection<SOOPChatClient> all = client.clients();  // 등록된 클라이언트 스냅샷
 ```
 
 ### 직접 연결
@@ -241,6 +278,7 @@ v0.5.0부터 `connectToChat()`이 반환하는 `CompletableFuture`는 연결이 
 | `connectToChat().join()` | 연결이 해제될 때까지 현재 스레드를 블로킹 |
 | `connectAndAwait()` | `connectToChat().join()`의 편의 메서드 (블로킹) |
 | `connectToChattingBlocking()` | **Deprecated** — `connectAndAwait()` 사용 권장 |
+| `SOOPClient.connectAll()` | 등록된 모든 클라이언트를 연결, <b>모두</b> 해제될 때 완료되는 `CompletableFuture<Void>` 반환 |
 
 ## 이벤트 타입
 
