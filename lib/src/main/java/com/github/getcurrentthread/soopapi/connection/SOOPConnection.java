@@ -105,9 +105,17 @@ public class SOOPConnection implements AutoCloseable {
                                         ? config.getBno()
                                         : soopLive.getBno(config.getBid()).join();
 
+                        // Pass authCookie so the live-detail HTTP call is authenticated.
+                        // Without it, the server returns an anonymous FTK; combined with
+                        // an authenticated CONNECT packet, the chat server silently rejects
+                        // the JOIN packet (no JOIN_CHANNEL ack ever arrives).
                         channelInfo =
                                 soopLive.toChannelInfo(
-                                        soopLive.detail(config.getBid(), bno).join());
+                                        soopLive.detail(
+                                                        config.getBid(),
+                                                        bno,
+                                                        config.getAuthCookie())
+                                                .join());
                         LOGGER.fine(() -> "Channel info received: " + channelInfo);
 
                         if (channelInfo.CHPT() == null || channelInfo.CHPT().trim().isEmpty()) {
