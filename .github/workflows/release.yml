@@ -1,14 +1,21 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 0.8.0)'
+        description: 'Release version (e.g. 0.12.1)'
         required: true
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -17,32 +24,83 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'develop' || github.ref }}
           fetch-depth: 0
+
+      - name: Resolve VERSION
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${INPUT_VERSION}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Resolved VERSION=${VERSION} (trigger: ${{ github.event_name }})"
+
+      - name: Validate
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::Invalid version '$VERSION'. Expected MAJOR.MINOR.PATCH[-suffix]."
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+              echo "::error::Tag v$VERSION already exists."
+              exit 1
+            fi
+          fi
 
       - name: Update version in README.md
         run: |
-          sed -i "s|implementation 'com.github.getCurrentThread:soopapi:[^']*'|implementation 'com.github.getCurrentThread:soopapi:v${{ github.event.inputs.version }}'|g" README.md
+          sed -i "s|implementation 'com.github.getCurrentThread:soopapi:[^']*'|implementation 'com.github.getCurrentThread:soopapi:v${VERSION}'|g" README.md
+          grep -qF -- "implementation 'com.github.getCurrentThread:soopapi:v${VERSION}'" README.md \
+            || { echo "::error::README.md JitPack line not updated to v${VERSION}."; exit 1; }
 
       - name: Update version in gradle.properties
         run: |
-          sed -i "s|^version=.*|version=${{ github.event.inputs.version }}|" gradle.properties
+          sed -i "s|^version=.*|version=${VERSION}|" gradle.properties
+          grep -qx -- "version=${VERSION}" gradle.properties \
+            || { echo "::error::gradle.properties version not updated to ${VERSION}."; exit 1; }
 
       - name: Update version in llms.txt
         run: |
-          sed -i "s|^- 버전: .*|- 버전: v${{ github.event.inputs.version }}|" llms.txt
+          sed -i "s|^- 버전: .*|- 버전: v${VERSION}|" llms.txt
+          grep -qx -- "- 버전: v${VERSION}" llms.txt \
+            || { echo "::error::llms.txt version line not updated to v${VERSION}."; exit 1; }
 
       - name: Update version in llms-full.txt
         run: |
-          sed -i "s|^- 버전: .*|- 버전: v${{ github.event.inputs.version }}|" llms-full.txt
+          sed -i "s|^- 버전: .*|- 버전: v${VERSION}|" llms-full.txt
+          grep -qx -- "- 버전: v${VERSION}" llms-full.txt \
+            || { echo "::error::llms-full.txt version line not updated to v${VERSION}."; exit 1; }
 
-      - name: Commit, tag, and push
+      - name: Amend bump, retag, and push
         run: |
-          git config user.name "github-actions[bot]"
+          git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add README.md gradle.properties llms.txt llms-full.txt
-          git diff --cached --quiet && echo "No version changes detected" && exit 0
-          git commit -m "chore: bump version to v${{ github.event.inputs.version }}"
-          git tag "v${{ github.event.inputs.version }}"
-          git push origin develop
-          git push origin "v${{ github.event.inputs.version }}"
+          if git diff --cached --quiet; then
+            echo "No file changes to amend."
+          else
+            git commit --amend --no-edit
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git tag -a "v${VERSION}" -m "Release v${VERSION}" HEAD
+          else
+            git tag -af "v${VERSION}" -m "Release v${VERSION}" HEAD
+          fi
+          git push --force-with-lease origin HEAD:develop
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git push origin "v${VERSION}"
+          else
+            git push --force origin "v${VERSION}"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          generate_release_notes: true
