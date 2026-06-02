@@ -14,7 +14,7 @@
 - **Virtual Threads**: JDK 21+ Virtual Thread 기반 비동기 메시지 처리
 - **통합 API 클라이언트**: `SOOPClient` 파사드로 인증, 방송 정보, 채널 정보, 채팅을 통합 관리
 - **다중 채팅 연결**: bid 기준 dedup된 `add`/`remove`/`get` API와 `(streamerId, event)`를 함께 받는 글로벌 이벤트 리스너 지원
-- **채팅 전송 지원**: `sendChat()` 메서드로 채팅 메시지 전송
+- **채팅 전송 지원**: `sendChat()` / `sendWhisper()` 메서드로 채팅·귓말 전송
 - **익명(읽기 전용) 연결**: 인증 없이 채팅 수신 가능
 - WebSocket 기반 자동 재연결 및 핑 메커니즘
 - 이벤트 리스너 에러 핸들링
@@ -34,7 +34,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.11.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.13.0'
 }
 ```
 
@@ -216,6 +216,9 @@ chat.connectToChat();
 
 // 4. 연결 완료 후 채팅 전송
 chat.sendChat("Hello!").join();
+
+// 5. 특정 사용자에게 귓말 전송 ("targetUser" = 받는 사람 로그인 ID, 닉네임/(n) 형태 아님)
+chat.sendWhisper("targetUser", "안녕하세요").join();
 ```
 
 ### 연결 상태 이벤트

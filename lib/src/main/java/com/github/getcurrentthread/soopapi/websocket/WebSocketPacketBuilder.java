@@ -17,6 +17,9 @@ public class WebSocketPacketBuilder {
     /** 채팅 메시지 전송의 명령 코드. */
     static final String CMD_CHAT = "0005";
 
+    /** 귓말(다이렉트 채팅) 전송의 명령 코드. */
+    static final String CMD_DIRECT_CHAT = "0009";
+
     /** 인증된 사용자 입장 정보의 명령 코드. */
     static final String CMD_ENTER_INFO = "0012";
 
@@ -107,6 +110,22 @@ public class WebSocketPacketBuilder {
 
     public static String createChatPacket(String message) {
         return buildPacket(CMD_CHAT, SOOPConstants.F + message + SOOPConstants.F.repeat(6));
+    }
+
+    /**
+     * 귓말(다이렉트 채팅) 전송 패킷을 생성합니다.
+     *
+     * <p>페이로드는 {@code F + message + F + targetId + F} 형태이며, {@code targetId}는 받는 사람의 SOOP 로그인 ID(예:
+     * {@code "targetUser"})입니다. 닉네임이나 런타임 {@code (n)} 접미사 형태가 아닙니다.
+     *
+     * @param targetId 받는 사람의 로그인 ID
+     * @param message 전송할 메시지
+     * @return 송신 가능한 귓말 패킷 문자열
+     */
+    public static String createWhisperPacket(String targetId, String message) {
+        return buildPacket(
+                CMD_DIRECT_CHAT,
+                SOOPConstants.F + message + SOOPConstants.F + targetId + SOOPConstants.F);
     }
 
     private static String buildPacket(String command, String data) {

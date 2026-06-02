@@ -25,7 +25,8 @@ import com.github.getcurrentthread.soopapi.util.SOOPChatUtils;
  * SOOP 채팅 클라이언트.
  *
  * <p>{@link SOOPChatConfig}에 {@code authCookie}가 설정되지 않은 경우, 클라이언트는 익명(읽기 전용) 모드로 연결됩니다. 익명 모드에서는
- * 채팅 메시지를 수신할 수 있지만, {@link #sendChat(String)}을 호출하면 {@link AuthenticationException}이 발생합니다.
+ * 채팅 메시지를 수신할 수 있지만, {@link #sendChat(String)}이나 {@link #sendWhisper(String, String)}을 호출하면 {@link
+ * AuthenticationException}이 발생합니다.
  */
 public class SOOPChatClient implements AutoCloseable {
     private static final Logger LOGGER = Logger.getLogger(SOOPChatClient.class.getName());
@@ -158,6 +159,33 @@ public class SOOPChatClient implements AutoCloseable {
                     new IllegalStateException("Not connected. Call connectToChat() first."));
         }
         return conn.sendChat(message);
+    }
+
+    /**
+     * 특정 사용자에게 귓말(다이렉트 채팅)을 전송합니다.
+     *
+     * @param targetId 받는 사람의 SOOP 로그인 ID (예: {@code "targetUser"}). 닉네임이나 런타임 {@code (n)} 접미사 형태가
+     *     아닙니다.
+     * @param message 전송할 메시지
+     * @return 전송이 완료되면 완료되는 CompletableFuture. 인증되지 않았거나 연결되지 않은 경우, 또는 {@code targetId}가 비어 있는 경우
+     *     예외로 완료됩니다.
+     */
+    public CompletableFuture<Void> sendWhisper(String targetId, String message) {
+        if (targetId == null || targetId.isBlank()) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("targetId must not be null or blank"));
+        }
+        if (!config.isAuthenticated()) {
+            return CompletableFuture.failedFuture(
+                    new AuthenticationException(
+                            "Authentication required. Set AuthCookie to send whisper messages."));
+        }
+        SOOPConnection conn = this.connection;
+        if (conn == null || !isConnected) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("Not connected. Call connectToChat() first."));
+        }
+        return conn.sendWhisper(targetId, message);
     }
 
     /**

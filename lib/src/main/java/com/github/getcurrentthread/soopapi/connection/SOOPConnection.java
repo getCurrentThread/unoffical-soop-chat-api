@@ -210,6 +210,10 @@ public class SOOPConnection implements AutoCloseable {
         return webSocketManager.sendChat(message);
     }
 
+    public CompletableFuture<Void> sendWhisper(String targetId, String message) {
+        return webSocketManager.sendWhisper(targetId, message);
+    }
+
     public void disconnect() {
         connectionLock.lock();
         try {

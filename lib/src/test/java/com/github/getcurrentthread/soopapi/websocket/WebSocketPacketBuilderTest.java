@@ -130,6 +130,55 @@ class WebSocketPacketBuilderTest {
     }
 
     @Test
+    void whisperPacket_hasCorrectCommand() {
+        String packet = WebSocketPacketBuilder.createWhisperPacket("targetUser", "hi");
+
+        assertTrue(packet.startsWith(SOOPConstants.ESC));
+        String command =
+                packet.substring(SOOPConstants.ESC.length(), SOOPConstants.ESC.length() + 4);
+        assertEquals(WebSocketPacketBuilder.CMD_DIRECT_CHAT, command);
+    }
+
+    @Test
+    void whisperPacket_containsMessageAndTargetId() {
+        String packet = WebSocketPacketBuilder.createWhisperPacket("targetUser", "Hello");
+
+        assertTrue(packet.contains("Hello"), "Whisper packet should contain the message");
+        assertTrue(packet.contains("targetUser"), "Whisper packet should contain the targetId");
+    }
+
+    @Test
+    void whisperPacket_lengthField_matchesUtf8ByteLength() {
+        // F + "안녕" + F + "targetUser" + F = 1 + 6 + 1 + 10 + 1 = 19 (한글은 UTF-8에서 글자당 3바이트)
+        String packet = WebSocketPacketBuilder.createWhisperPacket("targetUser", "안녕");
+        int lengthStart = SOOPConstants.ESC.length() + 4;
+        String lengthField = packet.substring(lengthStart, lengthStart + 6);
+
+        assertEquals("000019", lengthField);
+    }
+
+    @Test
+    void whisperPacket_lengthField_isSixZeroPaddedDigits() {
+        String packet = WebSocketPacketBuilder.createWhisperPacket("user", "hi");
+        int lengthStart = SOOPConstants.ESC.length() + 4;
+        String lengthField = packet.substring(lengthStart, lengthStart + 6);
+
+        assertTrue(lengthField.matches("\\d{6}"), "Length field should be 6 zero-padded digits");
+    }
+
+    @Test
+    void whisperPacket_fieldOrder_isMessageThenTarget() {
+        // 페이로드 레이아웃 검증: F + message + F + targetId + F (메시지가 targetId보다 앞, 끝에 단일 F)
+        String packet = WebSocketPacketBuilder.createWhisperPacket("targetUser", "msg");
+        String expectedData =
+                SOOPConstants.F + "msg" + SOOPConstants.F + "targetUser" + SOOPConstants.F;
+
+        assertTrue(
+                packet.endsWith(expectedData),
+                "message must precede targetId, with a single trailing F");
+    }
+
+    @Test
     void enterInfoPacket_hasCorrectCommand() {
         String packet = WebSocketPacketBuilder.createEnterInfoPacket("syn_ack_value");
 

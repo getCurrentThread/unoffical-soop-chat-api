@@ -192,6 +192,36 @@ public class SOOPChatClientTest {
     }
 
     @Test
+    void sendWhisper_withoutAuth_throwsAuthenticationException() {
+        SOOPChatConfig config =
+                new SOOPChatConfig.Builder().bid("testStreamer").bno("12345").build();
+
+        SOOPChatClient client = new SOOPChatClient(config);
+
+        ExecutionException ex =
+                assertThrows(
+                        ExecutionException.class,
+                        () -> client.sendWhisper("targetUser", "Hello!").get());
+
+        assertInstanceOf(AuthenticationException.class, ex.getCause());
+    }
+
+    @Test
+    void sendWhisper_withBlankTargetId_throwsIllegalArgument() {
+        SOOPChatConfig config =
+                new SOOPChatConfig.Builder().bid("testStreamer").bno("12345").build();
+
+        SOOPChatClient client = new SOOPChatClient(config);
+
+        // targetId 검증은 인증/연결 검사보다 먼저 수행되므로 미인증 상태에서도 IllegalArgumentException이 발생해야 함
+        ExecutionException ex =
+                assertThrows(
+                        ExecutionException.class, () -> client.sendWhisper("  ", "Hello!").get());
+
+        assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+    }
+
+    @Test
     void constructor_withoutBno_doesNotThrow() {
         SOOPChatConfig config = new SOOPChatConfig.Builder().bid("testStreamer").build();
 

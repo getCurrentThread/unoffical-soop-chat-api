@@ -417,6 +417,18 @@ public class WebSocketManager implements AutoCloseable {
                 .thenRun(() -> {});
     }
 
+    public CompletableFuture<Void> sendWhisper(String targetId, String message) {
+        String packet = WebSocketPacketBuilder.createWhisperPacket(targetId, message);
+        return requireActiveSocket()
+                .thenCompose(
+                        ws ->
+                                ws.sendText(packet, true)
+                                        .orTimeout(
+                                                config.getConnectionTimeout().toMillis(),
+                                                TimeUnit.MILLISECONDS))
+                .thenRun(() -> {});
+    }
+
     public CompletableFuture<Void> sendEnterInfo(String synAck) {
         LOGGER.fine("Sending ENTER_INFO packet...");
         String packet = WebSocketPacketBuilder.createEnterInfoPacket(synAck);
