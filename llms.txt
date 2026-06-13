@@ -782,6 +782,24 @@ NONE_TYPE (-1) — UnknownEvent
   chatNo="****", bjId="b****d", userId="u*****r", userNickname="닉***"
   balloonCount=9, fanOrder=0, isDefault=true, relay="0", extraData="61ac***"
 
+### 코드표 (Code Tables)
+
+`com.github.getcurrentthread.soopapi.code` 패키지. 원시 코드를 타입으로 지연 디코딩하는 접근자 제공(원시 필드는 유지, 호출 시 파싱).
+
+- UserLevel.parse("주|보조") -> UserLevel(Set<UserFlag> primary, Set<UserFlag2> secondary)
+  - 접근자: ChatMessageEvent.senderLevel(), ChatUserEntry.level(), AdminChatUserEntry.level(),
+    LoginEvent.userLevel(), JoinChannelEvent.userLevel(), SetUserFlagEvent.oldLevel()/newLevel(), SetAdminFlagEvent.level()
+  - UserFlag(주): ADMIN=1, BJ=4, GUEST=16, FANCLUB=32, MANAGER=256, TOPFAN=32768, FOLLOWER=1<<28, NOTITOPFAN=1<<31 …
+  - UserFlag2(보조): GLOBAL_PC=1, CLAN=2, TOPCLAN=4, ADMINCHAT=8192, PC=16384 … (주/보조 비트값이 겹치므로 enum 분리)
+  - level.has(UserFlag) / level.has(UserFlag2) 로 포함 여부 확인
+- ChatIceType.fromCode(int) -> CLEAR/NORMAL/FAN/SUP/FAN_SUP (레거시 0~4), 그 외 UNKNOWN
+  - ChatIceType.Flag.fromMask(int) -> v2 비트 플래그(NORMAL2=16, FAN2=32, SUP2=64, TOP_FAN2=128, FOLLOWER2=256)
+  - 접근자: IceModeEvent/IceModeExEvent/GetIceModeRelayEvent 의 iceType(), iceFlags(), isIceFlagMode()
+- ChatQuitStatus.fromCode(int) -> CLOSED/NORMAL/KCIK/DUMB/OVERCHAT/BLIND/ADMKICK, 그 외 UNKNOWN
+  - 접근자: QuitChannelEvent.quitStatus()
+
+알 수 없는 코드는 센티넬(UNKNOWN / UserLevel.EMPTY)을 반환하며 예외를 던지지 않습니다.
+
 ### EventEmitter
 
 - on(ChatEvent, EventListener) - 이벤트 구독

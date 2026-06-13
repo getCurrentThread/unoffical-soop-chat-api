@@ -10,6 +10,7 @@
 - **이벤트 기반 아키텍처**: 타입 안전한 `on(event, handler)` 패턴으로 이벤트 구독
 - **Sealed 이벤트 계층**: `ChatBaseEvent`, `DonationBaseEvent`, `SystemBaseEvent` 등 6개 카테고리로 분류된 이벤트 타입
 - **93개 이벤트 타입 지원**: 채팅 메시지, 풍선, 이모티콘, 구독 등 모든 이벤트를 Java Record로 디코딩
+- **코드표 디코딩**: 사용자 등급·아이스 모드·퇴장 사유 등 원시 코드를 `UserLevel`·`ChatIceType`·`ChatQuitStatus`로 지연 디코딩(`senderLevel()`, `iceType()`, `quitStatus()`)
 - **연결 상태 이벤트**: `DISCONNECTED`, `RECONNECTING`, `RECONNECTED` 이벤트로 연결 라이프사이클 추적
 - **Virtual Threads**: JDK 21+ Virtual Thread 기반 비동기 메시지 처리
 - **통합 API 클라이언트**: `SOOPClient` 파사드로 인증, 방송 정보, 채널 정보, 채팅을 통합 관리
@@ -345,6 +346,38 @@ SOOPChatConfig config = new SOOPChatConfig.Builder()
 | `RECONNECTED` | -5 | `ReconnectedEvent` | `totalAttempts` |
 
 전체 93개 이벤트 타입은 `ChatEvent.java`를, 모든 Record 필드 상세는 `llms-full.txt`를 참조하세요.
+
+## 코드표 (Code Tables)
+
+SOOP 소켓 프로토콜이 숫자로 전달하는 값(사용자 등급, 아이스 모드, 퇴장 사유)을 의미 있는 타입으로 디코딩합니다. 원시 필드는 그대로 유지되며, 아래 접근자는 **호출 시점에 지연 파싱**됩니다(디코딩 경로에는 영향 없음). 타입은 `com.github.getcurrentthread.soopapi.code` 패키지에 있습니다.
+
+| 코드표 | 타입 | 지연 접근자 |
+|--------|------|-------------|
+| 사용자 등급 | `UserLevel` (`UserFlag` 주 + `UserFlag2` 보조) | `ChatMessageEvent.senderLevel()`, `ChatUserEntry.level()`, `AdminChatUserEntry.level()`, `LoginEvent.userLevel()`, `JoinChannelEvent.userLevel()`, `SetUserFlagEvent.oldLevel()`/`newLevel()`, `SetAdminFlagEvent.level()` |
+| 아이스(채팅 제한) 모드 | `ChatIceType` (+ `ChatIceType.Flag`) | `IceModeEvent`·`IceModeExEvent`·`GetIceModeRelayEvent` 의 `iceType()`, `iceFlags()`, `isIceFlagMode()` |
+| 채널 퇴장 사유 | `ChatQuitStatus` | `QuitChannelEvent.quitStatus()` |
+
+```java
+client.on(ChatEvent.CHAT_MESSAGE, (bid, ChatMessageEvent e) -> {
+    UserLevel level = e.senderLevel();          // "81952|32768" → 파싱
+    if (level.has(UserFlag.BJ)) { /* 방송인 */ }
+    if (level.has(UserFlag2.TOPCLAN)) { /* 보조 그룹 플래그 */ }
+});
+
+client.on(ChatEvent.QUIT_CHANNEL, (bid, QuitChannelEvent e) -> {
+    if (e.quitStatus() == ChatQuitStatus.ADMKICK) { /* 운영자 강제 퇴장 */ }
+});
+
+client.on(ChatEvent.ICE_MODE, (bid, IceModeEvent e) -> {
+    if (e.isIceFlagMode()) {
+        Set<ChatIceType.Flag> flags = e.iceFlags();   // v2 비트 플래그
+    } else {
+        ChatIceType type = e.iceType();               // 레거시 0~4
+    }
+});
+```
+
+> 사용자 등급 플래그는 `"주|보조"` 형식의 문자열이며 두 정수는 서로 다른 비트 의미를 가집니다(예: `16`이 주 그룹에서는 `GUEST`, 보조 그룹에서는 `GAMEGOD`). 그래서 주 그룹은 `UserFlag`, 보조 그룹은 `UserFlag2`로 각각 분해합니다. 알 수 없는 코드는 센티넬(`UNKNOWN` / `UserLevel.EMPTY`)을 반환하며 예외를 던지지 않습니다.
 
 ## AI 지원 문서
 

@@ -301,6 +301,12 @@ lib/src/main/java/com/github/getcurrentthread/soopapi/
 │       ├── ItemBaseEvent.java               #     아이템 카테고리
 │       ├── NotificationBaseEvent.java       #     알림 카테고리
 │       └── UnknownEvent.java                #     미지의 이벤트
+├── code/                                    # 소켓 코드표
+│   ├── UserFlag.java                        #   사용자 등급 비트 - 주 그룹
+│   ├── UserFlag2.java                       #   사용자 등급 비트 - 보조 그룹
+│   ├── UserLevel.java                       #   "주|보조" 파싱 컨테이너 (record)
+│   ├── ChatIceType.java                     #   아이스/제한 모드 (+ 중첩 Flag)
+│   └── ChatQuitStatus.java                  #   채널 퇴장 사유
 ├── exception/                               # 예외
 │   ├── SOOPChatException.java               #   기본 예외 (RuntimeException)
 │   ├── AuthenticationException.java
@@ -733,11 +739,21 @@ public class ChatMessageDecoder implements IMessageDecoder {
 | TRANSLATION_STATE | state=1 (1=번역 활성화, 0=비활성화) |
 | VIDEO_BALLOON | balloonCount=9, isDefault=true, relay="0", extraData=MD5해시 |
 
-### 플래그(flag) 필드 해석 패턴
+### 플래그(flag) 필드 해석 패턴 + 코드표
 
-`senderFlag`, `userFlag`, `flag` 등은 "비트값|비트값" 형식의 문자열로 전달됩니다.
-파이프(`|`)로 구분된 두 정수를 비트 연산으로 파싱합니다.
-정확한 비트 의미는 SOOP 비공개 사양이며, 라이브러리는 원시 값을 그대로 제공합니다.
+`senderFlag`, `userFlag`, `flag` 등은 "주|보조" 형식의 문자열로 전달되며, 파이프(`|`)로 구분된 두 정수는 서로 다른 비트 의미를 가집니다.
+
+`com.github.getcurrentthread.soopapi.code` 패키지가 이 원시 값들을 타입으로 디코딩합니다. 원시 필드(String/int)는 그대로 유지하고, 이벤트 Record에 추가된 접근자가 **호출 시점에 지연 파싱**합니다(디코딩 경로 불변).
+
+- `UserLevel.parse(flag)` → `UserLevel(Set<UserFlag> primary, Set<UserFlag2> secondary)`.
+  - 주 그룹 `UserFlag`: ADMIN=1, HIDDEN=2, BJ=4, DUMB=8, GUEST=16, FANCLUB=32, MANAGER=256, FEMALE=512, MOBILE=16384, TOPFAN=32768, REALNAME=65536, QUICKVIEW=1<<19, FOLLOWER=1<<28, NOTIVODBALLOON=1<<30, NOTITOPFAN=1<<31 …
+  - 보조 그룹 `UserFlag2`: GLOBAL_PC=1, CLAN=2, TOPCLAN=4, GAMEGOD=16, ADMINCHAT=8192, PC=16384, SPECIFY=32768, HTML5=1<<17 …
+  - 두 그룹은 비트값이 겹치므로(예: 16 = GUEST(주) vs GAMEGOD(보조)) 반드시 각자의 enum으로 분해합니다. 부호 비트(NOTITOPFAN=1<<31)는 `(mask & bit) == bit`로 안전하게 처리됩니다.
+  - 접근자: `ChatMessageEvent.senderLevel()`, `ChatUserEntry.level()`, `AdminChatUserEntry.level()`, `LoginEvent.userLevel()`, `JoinChannelEvent.userLevel()`, `SetUserFlagEvent.oldLevel()/newLevel()`, `SetAdminFlagEvent.level()`.
+- 아이스(채팅 제한) 모드: `ChatIceType.fromCode(int)`(레거시 0~4: CLEAR/NORMAL/FAN/SUP/FAN_SUP) + `ChatIceType.Flag.fromMask(int)`(v2 비트: NORMAL2=16, FAN2=32, SUP2=64, TOP_FAN2=128, FOLLOWER2=256). 접근자: `IceModeEvent`/`IceModeExEvent`/`GetIceModeRelayEvent` 의 `iceType()`, `iceFlags()`, `isIceFlagMode()`.
+- 채널 퇴장 사유: `ChatQuitStatus.fromCode(int)` (0=CLOSED, 1=NORMAL, 2=KCIK, 3=DUMB, 4=OVERCHAT, 5=BLIND, 6=ADMKICK). 접근자: `QuitChannelEvent.quitStatus()`.
+
+알 수 없는 코드는 센티넬(`UNKNOWN` / `UserLevel.EMPTY`)을 반환하며 예외를 던지지 않습니다.
 
 ### JSON 이벤트 (Map<String, Object>)
 
