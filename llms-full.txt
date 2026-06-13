@@ -6,7 +6,7 @@
 ## 핵심 정보
 
 - GitHub: https://github.com/getCurrentThread/soopapi
-- 버전: v0.13.0
+- 버전: v0.14.0
 - 라이선스: MIT
 - 언어: Java 25 이상
 - 빌드: Gradle 9.3.1
@@ -23,7 +23,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.8.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.13.0' // 최신 버전은 핵심 정보 참조
 }
 ```
 
@@ -40,29 +40,28 @@ import com.github.getcurrentthread.soopapi.event.model.*;
 
 public class Example {
     public static void main(String[] args) throws Exception {
-        SOOPClient client = new SOOPClient();
+        try (SOOPClient client = new SOOPClient()) {
+            // 방송/채널 정보 조회 (HTTP API)
+            LiveDetail detail = client.live().detail("streamerId").join();
+            System.out.println("방송 제목: " + detail.title());
+            StationInfo station = client.channel().station("streamerId").join();
+            System.out.println("스테이션: " + station.stationName());
 
-        // 방송 정보 조회
-        LiveDetail detail = client.live().detail("streamerId").join();
-        System.out.println("방송 제목: " + detail.title());
+            // 글로벌 리스너 — 이후 add()되는 모든 스트림에 자동 attach. 핸들러: (streamerId, event)
+            client.on(ChatEvent.CHAT_MESSAGE, (bid, ChatMessageEvent e) -> {
+                System.out.println(e.senderNickname() + ": " + e.message());
+            });
 
-        // 채널 정보 조회
-        StationInfo station = client.channel().station("streamerId").join();
-        System.out.println("스테이션: " + station.stationName());
+            client.on(ChatEvent.SEND_BALLOON, (bid, SendBalloonEvent e) -> {
+                System.out.println(e.senderNickname() + "님이 풍선 " + e.count() + "개 선물!");
+            });
 
-        // 채팅 연결 (이벤트 기반)
-        SOOPChatClient chat = client.chat("streamerId");
+            // add() 호출 즉시 비동기 연결 — 별도 connectToChat() 불필요
+            client.add("streamerId");
 
-        chat.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
-            System.out.println(e.senderNickname() + ": " + e.message());
-        });
-
-        chat.on(ChatEvent.SEND_BALLOON, (SendBalloonEvent e) -> {
-            System.out.println(e.senderNickname() + "님이 풍선 " + e.count() + "개 선물!");
-        });
-
-        // connectToChat().join()은 연결이 해제될 때까지 블로킹됩니다
-        chat.connectToChat().join();
+            // 모든 연결이 끊길 때까지 대기
+            client.connectAll().join();
+        }
     }
 }
 ```
@@ -147,33 +146,45 @@ client.getEventEmitter().setErrorHandler((EventEmitterException ex) -> {
 - auth() -> SOOPAuth - 인증 API
 - live() -> SOOPLive - 방송 정보 API
 - channel() -> SOOPChannel - 채널 정보 API
-- chat(String streamerId) -> SOOPChatClient - 스트리머 ID로 채팅 클라이언트 생성
-- chat(SOOPChatConfig config) -> SOOPChatClient - 커스텀 설정으로 채팅 클라이언트 생성
-- close() - 모든 리소스 해제
+- add(String streamerId) -> SOOPChatClient - 등록 + 즉시 비동기 연결. bid 기준 dedup. 자동 재연결 지원.
+- add(SOOPChatConfig config) -> SOOPChatClient - 커스텀 설정으로 등록 + 자동 연결.
+- remove(String streamerId) -> boolean - 개별 disconnect + 등록 해제. 등록돼 있었으면 true.
+- get(String streamerId) -> SOOPChatClient - 등록된 핸들 반환(없으면 null).
+- streamerIds() -> Set<String> - 등록된 bid 스냅샷.
+- clients() -> Collection<SOOPChatClient> - 등록된 클라이언트 스냅샷.
+- <T extends BaseEvent> on(ChatEvent, StreamEventListener<T>) -> SOOPClient - 글로벌 리스너 등록. 모든 스트림 + 이후 추가되는 스트림에 자동 attach. 핸들러: (streamerId, event).
+- <T extends BaseEvent> off(ChatEvent, StreamEventListener<T>) -> SOOPClient - 글로벌 리스너 해제.
+- connectAll() -> CompletableFuture<Void> - 등록된 모든 클라이언트의 disconnect를 대기.
+- reconnect(String streamerId) -> CompletableFuture<Void> - tear-down + 새 연결로 강제 재연결. 현재 상태/진행 중 backoff 무시. RECONNECTING/DISCONNECTED/RECONNECTED 이벤트 emit. 미등록 bid면 IllegalArgumentException으로 실패.
+- reconnectAll() -> CompletableFuture<Void> - 등록된 모든 스트림에 강제 재연결 수행 후 모두 disconnect될 때까지 대기.
+- chat(String streamerId) -> SOOPChatClient - add()의 별칭(편의 메서드).
+- chat(SOOPChatConfig config) -> SOOPChatClient - add()의 별칭(편의 메서드).
+- close() - 모든 리소스 해제. try-with-resources 권장.
 
 ### SOOPChatClient (채팅 클라이언트)
 
 채팅 연결 및 이벤트 구독. AutoCloseable 구현.
 
 이벤트 관리:
-- <T extends BaseEvent> on(ChatEvent event, EventListener<T> listener) -> SOOPChatClient
-- <T extends BaseEvent> once(ChatEvent event, EventListener<T> listener) -> SOOPChatClient
-- <T extends BaseEvent> off(ChatEvent event, EventListener<T> listener) -> SOOPChatClient
+- <T extends BaseEvent> on(ChatEvent event, EventListener<T> listener) -> SOOPChatClient - 이벤트 구독
+- <T extends BaseEvent> once(ChatEvent event, EventListener<T> listener) -> SOOPChatClient - 일회성 구독
+- <T extends BaseEvent> off(ChatEvent event, EventListener<T> listener) -> SOOPChatClient - 구독 해제
 
 연결:
 - connectToChat() -> CompletableFuture<Void> - 비동기 연결 (연결 해제 시 완료)
-- connectAndAwait() - 블로킹 연결
+- connectAndAwait() - 블로킹 연결 (연결 해제까지 대기)
 - disconnect() - 연결 해제
-- reconnect() -> CompletableFuture<Void> - 수동 재연결
-- isConnected() -> boolean
-- getConnectionStatus() -> CompletableFuture<ConnectionStatus>
+- reconnect() -> CompletableFuture<Void> - 정상 연결 상태에서의 가벼운 재연결. 초기 미연결이면 실패.
+- forceReconnect() -> CompletableFuture<Void> - tear-down + 새 연결. 현재 상태/backoff 무시. RECONNECTING/RECONNECTED emit.
+- isConnected() -> boolean - 연결 상태 확인
+- getConnectionStatus() -> CompletableFuture<ConnectionStatus> - 상세 연결 상태
 
 채팅:
 - sendChat(String message) -> CompletableFuture<Void> - 채팅 전송 (인증 필요)
 
 기타:
-- getBid() -> String
-- getEventEmitter() -> EventEmitter
+- getBid() -> String - 방송인 ID
+- getEventEmitter() -> EventEmitter - 이벤트 에미터 직접 접근
 
 ### SOOPChatConfig.Builder (설정)
 
@@ -701,6 +712,319 @@ public class ChatMessageDecoder implements IMessageDecoder {
 | -5 | RECONNECTED | 재연결 완료 |
 | -1 | NONE_TYPE | 알 수 없는 타입 |
 
+## 이벤트 Record 필드 상세
+
+모든 Record의 공통 필드: ChatEvent eventType, String raw, long timestamp
+아래 필드 목록에서는 공통 필드를 생략하고 이벤트 고유 필드만 표기합니다.
+
+### ChatBaseEvent (채팅)
+
+CHAT_MESSAGE (5) — ChatMessageEvent
+  String message, String senderId, int type, int chatLang, String senderNickname, String senderFlag, String subscriptionMonth, String randomNicknameColor, String randomNicknameColorDarkmode
+
+DIRECT_CHAT (9) — DirectChatEvent
+  String message, String senderId, String receiverId, int type, String senderNickname, String receiverNickname, String flag
+
+MANAGER_CHAT (26) — ManagerChatEvent
+  String message, String senderId, int isAdmin, int chatLang, String senderNickname, String senderFlag, String subscriptionMonth
+
+SNS_MESSAGE (31) — SnsMessageEvent
+  String message
+
+SUPER_CHAT (41) — SuperChatEvent
+  (공통 필드만)
+
+### DonationBaseEvent (후원)
+
+SEND_BALLOON (18) — SendBalloonEvent
+  String bjId, String senderId, String senderNickname, int count, int fanOrder, String fileName, boolean isDefault, int isTopFan, String ttsData
+
+SEND_BALLOON_SUB (33) — SendBalloonSubEvent
+  String bjId, String senderId, String senderNickname, int count, int fanOrder, String fileName, boolean isDefault, int isTopFan
+
+SEND_FAN_LETTER (20) — SendFanLetterEvent
+  String bjId, String bjNickname, String senderId, String senderNickname, int type, int count, String supporterOrder
+
+SEND_FAN_LETTER_SUB (34) — SendFanLetterSubEvent
+  String bjId, String bjNickname, String senderId, String senderNickname, int type, int count, String supporterOrder
+
+CHOCOLATE (37) — ChocolateEvent
+  String bjId, String senderId, String senderNickname, int count
+
+CHOCOLATE_SUB (38) — ChocolateEvent
+  String bjId, String senderId, String senderNickname, int count
+
+SEND_SUBSCRIPTION (108) — SendSubscriptionEvent
+  String senderId, String senderNickname, String receiverId, String receiverNickname, String subscriptionId, String subscriptionNickname, int itemType, String itemCode, int isSubscription, String subscriptionType, String subscriptionPeriod, int subscriptionRemain, int subscriptionPaycount
+
+VIDEO_BALLOON (105) — VideoBalloonEvent
+  String chatNo, String bjId, String userId, String userNickname, int balloonCount, int fanOrder, int isTopFan, String relay, String fileName, boolean isDefault, String extraData
+
+VOD_BALLOON (86) — VodBalloonEvent
+  String bjId, String senderId, String senderNickname, int balloonCount
+
+ADCON_EFFECT (87) — AdconEffectEvent
+  int chatNo, String bjId, String senderId, String senderNickname, String message, String message2, String title, String urlImg, String urlDefault, int adconCount, int fanOrder, int isTopFan, int isFanChief, int isSubRoom
+
+STATION_ADCON (107) — StationAdconEvent
+  String bjId, String userId, String userNickName, int adconCount, String isDefault, String adconMsg, String chatNumber
+
+GIFT_TICKET (102) — GiftTicketEvent
+  String senderId, String senderNickname, String receiverId, String receiverNickname, String ticketData
+
+OGQ_EMOTICON_GIFT (118) — GiftOGQEmoticonEvent
+  String senderId, String senderNick, String receivedId, String receivedNick, String ogqTitle, String ogqImageUrl
+
+GEM_ITEM_SEND (120) — GemItemSendEvent
+  String receiverId, String receiverNick, String itemName
+
+STAR_COIN (44) — StarCoinEvent
+  (공통 필드만)
+
+SEND_PROMOTION (72) — SendPromotionEvent
+  (공통 필드만)
+
+TOP_FAN (30) — TopFanEvent
+  (공통 필드만)
+
+TOP_FAN_SUB (35) — TopFanSubEvent
+  (공통 필드만)
+
+TOP_CLAN (39) — TopClanEvent
+  (공통 필드만)
+
+TOP_CLAN_SUB (40) — TopClanSubEvent
+  (공통 필드만)
+
+VIDEO_BALLOON_LINK (117) — VideoBalloonLinkEvent
+  (공통 필드만)
+
+VOD_ADCON (103) — VodAdconEvent
+  (공통 필드만)
+
+### SystemBaseEvent (시스템)
+
+KEEP_ALIVE (0) — KeepAliveEvent
+  (공통 필드만)
+
+LOGIN (1) — LoginEvent
+  String userId, String userFlag
+
+JOIN_CHANNEL (2) — JoinChannelEvent
+  String chatNo, String bjId, int maxSubBjCount, String familyNickname, String userFlag
+
+QUIT_CHANNEL (3) — QuitChannelEvent
+  int quitType, int adminKickCount, String nickname, String bannedRoomBjId, String bannedRoomBjNickname
+
+CHAT_USER (4) — ChatUserEvent
+  int type, List<ChatUserEntry> userList
+
+SET_CHANNEL_NAME (6) — SetChannelNameEvent
+  String channelName
+
+SET_BJ_STAT (7) — SetBjStatEvent
+  (공통 필드만)
+
+ICE_MODE (19) — IceModeEvent
+  int iceMode
+
+ICE_MODE_EX (21) — IceModeExEvent
+  int iceMode, int freezeType, int balloonLimitCount, int subscriptionLimitCount
+
+GET_ICE_MODE_RELAY (22) — GetIceModeRelayEvent
+  int iceMode, int freezeType
+
+SET_USER_FLAG (12) — SetUserFlagEvent
+  String oldFlag, String userId, String userNickname, String newFlag
+
+SET_SUB_BJ (13) — SetSubBjEvent
+  String userId, String flag, int hide, String nickname
+
+SET_NICKNAME (14) — SetNicknameEvent
+  String userId, String newNickname, int changeType, String flag, String oldNickname
+
+SERVER_STAT (15) — ServerStatEvent
+  String serverStat
+
+NULL_16 (16) — Null16Event
+  (공통 필드만)
+
+CLUB_COLOR (17) — ClubColorEvent
+  (공통 필드만)
+
+APPEND_DATA (27) — AppendDataEvent
+  String appendData
+
+FREECAT_OWNER_JOIN (65) — FreecatOwnerJoinEvent
+  String chatNo, String bjId, int maxSubBjCount, String familyNickname, String userFlag
+
+SNS_MODE (32) — SnsModeEvent
+  int snsMode
+
+RELOAD_BURN_LEVEL (24) — ReloadBurnLevelEvent
+  int burnLevel
+
+EMOTICON_TICKET (110) — EmoticonTicketEvent
+  int value
+
+CHAT_BLOCK_MODE (51) — ChatBlockModeEvent
+  (공통 필드만)
+
+SET_BROAD_INFO (53) — SetBroadInfoEvent
+  (공통 필드만)
+
+BDM_ADD_BLACK_INFO (52) — BdmAddBlackInfoEvent
+  (공통 필드만)
+
+NOTIFY_MOB_BROAD_PAUSE (75) — NotifyMobBroadPauseEvent
+  int status
+
+NOTIFY_VR (74) — NotifyVrEvent
+  int action, String bjId, String vrId, String rtmp, String hls, int vrType
+
+NOTI_GAME_RANKER (43) — NotiGameRankerEvent
+  (공통 필드만)
+
+CHUSER_EXTEND (127) — ChuserExtendEvent
+  Map<String, Map<String, Integer>> userStatus
+
+DISCONNECTED (-3) — DisconnectedEvent
+  int statusCode, String reason, boolean causedByError
+
+RECONNECTING (-4) — ReconnectingEvent
+  int attemptNumber, int maxAttempts, long delayMs
+
+RECONNECTED (-5) — ReconnectedEvent
+  int totalAttempts
+
+NONE_TYPE (-1) — NoneTypeEvent
+  int value
+
+RAW (-2) — RawEvent
+  (공통 필드만, raw에 원시 패킷 전체 포함)
+
+### ModerationBaseEvent (관리)
+
+SET_DUMB (8) — SetDumbEvent
+  String userId, String userInfo, int dumbTime, int dumbCount, String adminId, int adminType, String extraInfo, String userNickname
+
+KICK (11) — KickEvent
+  String userId, String userNickname, int kickType, String reason, String kickerNickname
+
+BLIND_KICK (25) — BlindKickEvent
+  String userId, String userNickname, int blindTime
+
+BAN_WORD (54) — BanWordEvent
+  String replaceWord, String[] banWordList
+
+SEND_ADMIN_NOTICE (58) — SendAdminNoticeEvent
+  String message
+
+KICK_AND_CANCEL (76) — KickAndCancelEvent
+  int status, String userId, String userNickname
+
+KICK_USERLIST (77) — KickUserListEvent
+  List<KickedUser> kickedUsers
+
+ADMIN_CHAT_USER (78) — AdminChatUserEvent
+  String type, List<AdminChatUserEntry> users
+
+CLI_DOBAE_INFO (79) — CliDobaeInfoEvent
+  int dobaeInfo, String userId
+
+KICK_MSG_STATE (90) — KickMsgStateEvent
+  String chatNo, boolean isHideKickMessage
+
+SET_ADMIN_FLAG (126) — SetAdminFlagEvent
+  String flag
+
+ADMIN_CHUSER_EXTEND (128) — AdminChuserExtendEvent
+  (공통 필드만)
+
+### ItemBaseEvent (아이템)
+
+OGQ_EMOTICON (109) — OGQEmoticonEvent
+  String chatNo, String message, String groupId, String subId, String version, String userInfo, String color, String chatLang, String type
+
+SEND_QUICK_VIEW (45) — QuickViewEvent
+  String senderId, String senderNickname, String receiverId, String receiverNickname, int itemType
+
+BUY_GOODS (70) — BuyGoodsEvent
+  int goodsType, String bjId, String buyerId, String buyerNickname, String goodsName, int goodsCount, int relay
+
+BUY_GOODS_SUB (71) — BuyGoodsSubEvent
+  int goodsType, String bjId, String buyerId, String buyerNickname, String goodsName, int goodsCount, int relay
+
+PAID_ITEM (29) — PaidItemEvent
+  int itemType, String bjId, String buyerId, String buyerNickname, String itemName, int itemCount
+
+ITEM_DROPS (111) — ItemDropsEvent
+  String bjId, String dropsName, String dropsMsg, String dropsImgUrl
+
+ITEM_USING (47) — ItemUsingEvent
+  String bjId, int itemType, int remainTime
+
+FOLLOW_ITEM (91) — FollowItemEvent
+  int chatNo, String recvId, String sendId, String sendNick, int type
+
+FOLLOW_ITEM_EFFECT (93) — FollowItemEffectEvent
+  String bjId, String sendId, String sendNick, int month, int chatNo
+
+MISSION (121) — MissionEvent
+  Map<String, Object> data
+
+MISSION_SETTLE (125) — MissionSettleEvent
+  Map<String, Object> data
+
+AD_IN_BROAD_JSON (119) — AdInBroadJsonEvent
+  Map<String, Object> data
+
+BJ_STICKER_ITEM (36) — BjStickerItemEvent
+  int type
+
+BASEBALL_EVENT (28) — BaseballEventEvent
+  String eventData
+
+ITEM_STATUS (46) — ItemStatusEvent
+  (공통 필드만)
+
+ITEM_SELL_EFFECT (92) — ItemSellEffectEvent
+  (공통 필드만)
+
+UPDATE_TICKET (42) — UpdateTicketEvent
+  (공통 필드만)
+
+USE_QUICK_VIEW (48) — UseQuickViewEvent
+  (공통 필드만)
+
+### NotificationBaseEvent (알림)
+
+NOTICE (10) — NoticeEvent
+  String message
+
+BJ_NOTICE (104) — BjNoticeEvent
+  int show, String message
+
+LIVE_CAPTION (122) — LiveCaptionEvent
+  String caption
+
+SLOW_MODE (23) — SlowModeEvent
+  int autotime, int manualtime
+
+NOTIFY_POLL (50) — NotifyPollEvent
+  int status, String bjId, int no, int show
+
+TRANSLATION (95) — TranslationEvent
+  int idx, int mode, String message, int orgLanguage, int transLanguage
+
+TRANSLATION_STATE (94) — TranslationStateEvent
+  int state
+
+### UnknownEvent
+
+NONE_TYPE (-1) — UnknownEvent
+  int code, String originalMessage
+
 ## Fixture 검증 데이터 (30개 이벤트 실제 캡처)
 
 실제 수집된 패킷 `.bin` fixture를 사용해 디코딩이 검증된 30개 이벤트의 실제 필드 값 예시입니다.
@@ -739,7 +1063,7 @@ public class ChatMessageDecoder implements IMessageDecoder {
 | TRANSLATION_STATE | state=1 (1=번역 활성화, 0=비활성화) |
 | VIDEO_BALLOON | balloonCount=9, isDefault=true, relay="0", extraData=MD5해시 |
 
-### 플래그(flag) 필드 해석 패턴 + 코드표
+### 코드표 및 플래그 해석
 
 `senderFlag`, `userFlag`, `flag` 등은 "주|보조" 형식의 문자열로 전달되며, 파이프(`|`)로 구분된 두 정수는 서로 다른 비트 의미를 가집니다.
 
@@ -919,15 +1243,15 @@ public sealed interface BaseEvent
 
 ## 버전 관리
 
-현재 버전: 0.5.0
+현재 버전은 상단 **핵심 정보**와 `gradle.properties`의 `version` 값을 참조하세요.
 
-- gradle.properties에서 version=0.5.0 관리
-- JitPack에서 git 태그(v0.5.0)로 빌드
+- `gradle.properties`의 `version`으로 관리
+- JitPack은 git 태그(`vX.Y.Z`)로 빌드
 
 ### 버전 업데이트 절차
 
-1. gradle.properties의 version 값 변경
-2. README.md의 JitPack 의존성 버전 업데이트
+릴리스는 `.github/workflows/release.yml`이 자동화합니다(`workflow_dispatch`로 버전 입력 또는 `v*` 태그 push 시 트리거).
+워크플로가 README.md·gradle.properties·llms.txt·llms-full.txt의 버전을 일괄 갱신하고 직전 커밋에 amend한 뒤, 태그를 생성·푸시하고 GitHub Release를 만듭니다.
 
 ## 면책 조항
 

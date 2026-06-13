@@ -3,10 +3,13 @@
 > SOOP(한국 라이브 스트리밍 플랫폼) 채팅 시스템과 상호작용하기 위한 비공식 Java 25+ 라이브러리.
 > WebSocket 기반 실시간 채팅 연결, 93개 이상의 타입 안전한 이벤트 디코딩, 이벤트 기반 아키텍처를 제공합니다.
 
+이 문서는 **요점 정리**입니다. 전체 API 시그니처·이벤트별 필드·프로토콜·내부 구조 등 상세 레퍼런스는
+[llms-full.txt](llms-full.txt)에 있으며, 각 절 끝의 `→ llms-full.txt §...` 링크로 바로 이동할 수 있습니다.
+
 ## 핵심 정보
 
 - GitHub: https://github.com/getCurrentThread/soopapi
-- 버전: v0.13.0
+- 버전: v0.14.0
 - 라이선스: MIT
 - 언어: Java 25 이상
 - 빌드: Gradle 9.3.1
@@ -15,827 +18,117 @@
 
 ## 설치
 
-### Gradle (JitPack)
-
 ```groovy
-repositories {
-    maven { url 'https://jitpack.io' }
-}
+repositories { maven { url 'https://jitpack.io' } }
 
 dependencies {
-    implementation 'com.github.getCurrentThread:soopapi:v0.8.0'
+    implementation 'com.github.getCurrentThread:soopapi:v0.13.0' // 최신 버전은 핵심 정보 참조
 }
 ```
 
-## 빠른 시작
+→ 상세: [llms-full.txt § 설치](llms-full.txt#설치)
 
-### 통합 클라이언트 (SOOPClient) - 권장
-
-```java
-import com.github.getcurrentthread.soopapi.SOOPClient;
-import com.github.getcurrentthread.soopapi.api.model.*;
-import com.github.getcurrentthread.soopapi.client.SOOPChatClient;
-import com.github.getcurrentthread.soopapi.event.ChatEvent;
-import com.github.getcurrentthread.soopapi.event.model.*;
-
-public class Example {
-    public static void main(String[] args) throws Exception {
-        try (SOOPClient client = new SOOPClient()) {
-            // 글로벌 리스너 먼저 등록 — 이후 add()되는 스트림에 자동 attach
-            client.on(ChatEvent.CHAT_MESSAGE, (bid, ChatMessageEvent e) -> {
-                System.out.println("[" + bid + "] " + e.senderNickname() + ": " + e.message());
-            });
-
-            client.on(ChatEvent.SEND_BALLOON, (bid, SendBalloonEvent e) -> {
-                System.out.println("[" + bid + "] " + e.senderNickname()
-                        + "님이 풍선 " + e.count() + "개 선물!");
-            });
-
-            // add() 호출 즉시 비동기 연결 — 별도의 connectToChat() 불필요
-            client.add("streamerA");
-            client.add("streamerB");
-
-            // 모든 연결이 끊길 때까지 대기
-            client.connectAll().join();
-        }
-    }
-}
-```
-
-### 다중 채팅 연결
+## 빠른 시작 (권장: SOOPClient)
 
 ```java
 try (SOOPClient client = new SOOPClient()) {
-    client.on(ChatEvent.CHAT_MESSAGE, (bid, ChatMessageEvent e) -> {
-        System.out.println("[" + bid + "] " + e.message());
-    });
+    // 글로벌 리스너 — 이후 add()되는 모든 스트림에 자동 attach. 핸들러: (streamerId, event)
+    client.on(ChatEvent.CHAT_MESSAGE, (bid, ChatMessageEvent e) ->
+            System.out.println("[" + bid + "] " + e.senderNickname() + ": " + e.message()));
+    client.on(ChatEvent.SEND_BALLOON, (bid, SendBalloonEvent e) ->
+            System.out.println("[" + bid + "] " + e.senderNickname() + "님이 풍선 " + e.count() + "개!"));
 
-    // add()는 등록 즉시 비동기 연결, bid 기준 dedup
-    client.add("streamerA");
+    client.add("streamerA");    // 등록 즉시 비동기 연결, bid 기준 dedup
     client.add("streamerB");
-    client.add("streamerA"); // dedup: 같은 인스턴스 반환
-
-    // 런타임 중 자유롭게 추가/제거 가능
-    Thread.sleep(5_000);
-    client.add("streamerC");
-    client.remove("streamerB");
-
-    client.connectAll().join();
+    client.connectAll().join(); // 모든 연결이 끊길 때까지 대기
 }
 ```
 
-### 직접 연결 (익명/읽기 전용)
+- authCookie 없이 연결하면 **익명(읽기 전용)** 모드 — 수신은 되지만 `sendChat()`은 `AuthenticationException`.
+- 인증/전송: `client.auth().signIn(id, pw)` → `AuthCookie` → `SOOPChatConfig.Builder().authCookie(cookie)` → `sendChat(...)`.
 
-```java
-SOOPChatConfig config = new SOOPChatConfig.Builder()
-        .bid("streamerId")
-        .build();
+→ 직접 연결 · 인증+전송 · 연결 상태 이벤트 · 에러 핸들링 예제: [llms-full.txt § 빠른 시작](llms-full.txt#빠른-시작)
 
-SOOPChatClient client = new SOOPChatClient(config);
+## API 핵심
 
-client.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
-    System.out.println(e.senderNickname() + ": " + e.message());
-});
+**SOOPClient** (파사드, `AutoCloseable`) — 통합 진입점
+- `add(streamerId)` / `add(config)` → 등록 + 즉시 비동기 연결 (bid dedup, 자동 재연결)
+- `remove(id)` · `get(id)` · `streamerIds()` · `clients()`
+- `on/off(ChatEvent, (streamerId, event) -> …)` → 글로벌 리스너 (모든 스트림 + 이후 추가분에 자동 attach)
+- `connectAll()` · `reconnect(id)` · `reconnectAll()` · `close()`
+- `auth()` → SOOPAuth · `live()` → SOOPLive · `channel()` → SOOPChannel
 
-// connectAndAwait()는 연결이 해제될 때까지 블로킹됩니다
-client.connectAndAwait();
-```
+**SOOPChatClient** (단일 채팅 연결, `AutoCloseable`)
+- `on/once/off(ChatEvent, listener)` · `getEventEmitter()`
+- `connectToChat()` (연결 해제 시 완료) · `connectAndAwait()` (블로킹) · `disconnect()` · `reconnect()` · `forceReconnect()`
+- `sendChat(message)` (인증 필요) · `isConnected()` · `getConnectionStatus()` · `getBid()`
 
-authCookie 없이 연결하면 익명 모드로 동작합니다. 채팅 수신은 가능하지만 sendChat() 호출 시 AuthenticationException이 발생합니다.
+**HTTP API**: `SOOPAuth.signIn(id, pw)` → `AuthCookie` · `SOOPLive.detail(id[, bno[, cookie]])` → `LiveDetail` · `SOOPChannel.station(id)` → `StationInfo`
 
-### 인증 + 채팅 전송
-
-```java
-SOOPClient client = new SOOPClient();
-
-// 1. 로그인
-AuthCookie cookie = client.auth().signIn("userId", "password").join();
-
-// 2. 인증된 설정으로 채팅 클라이언트 생성
-SOOPChatConfig config = new SOOPChatConfig.Builder()
-        .bid("streamerId")
-        .authCookie(cookie)
-        .build();
-
-SOOPChatClient chat = new SOOPChatClient(config);
-
-chat.on(ChatEvent.CHAT_MESSAGE, (ChatMessageEvent e) -> {
-    System.out.println(e.senderNickname() + ": " + e.message());
-});
-
-// 3. 연결 (비동기)
-chat.connectToChat();
-
-// 4. 채팅 전송
-chat.sendChat("Hello!").join();
-```
-
-### 연결 상태 이벤트
-
-```java
-client.on(ChatEvent.DISCONNECTED, (DisconnectedEvent e) -> {
-    System.out.println("연결 해제: code=" + e.statusCode()
-            + ", reason=" + e.reason()
-            + ", error=" + e.causedByError());
-});
-
-client.on(ChatEvent.RECONNECTING, (ReconnectingEvent e) -> {
-    System.out.println("재연결 시도 " + e.attemptNumber()
-            + "/" + e.maxAttempts()
-            + " (" + e.delayMs() + "ms 후)");
-});
-
-client.on(ChatEvent.RECONNECTED, (ReconnectedEvent e) -> {
-    System.out.println("재연결 완료 (총 " + e.totalAttempts() + "회 시도)");
-});
-```
-
-### 에러 핸들링
-
-```java
-client.getEventEmitter().setErrorHandler((EventEmitterException ex) -> {
-    System.err.println("이벤트 처리 중 오류: " + ex.getChatEvent());
-    ex.printStackTrace();
-});
-```
-
-## API 레퍼런스
-
-### SOOPClient (파사드)
-
-통합 진입점. AutoCloseable 구현.
-
-- SOOPClient() - 기본 설정으로 생성
-- SOOPClient(SOOPClientConfig config) - 커스텀 설정
-- auth() -> SOOPAuth - 인증 API
-- live() -> SOOPLive - 방송 정보 API
-- channel() -> SOOPChannel - 채널 정보 API
-- add(String streamerId) -> SOOPChatClient - 등록 + 즉시 비동기 연결. bid 기준 dedup. 자동 재연결 지원.
-- add(SOOPChatConfig config) -> SOOPChatClient - 커스텀 설정으로 등록 + 자동 연결.
-- remove(String streamerId) -> boolean - 개별 disconnect + 등록 해제. 등록돼 있었으면 true.
-- get(String streamerId) -> SOOPChatClient - 등록된 핸들 반환(없으면 null).
-- streamerIds() -> Set<String> - 등록된 bid 스냅샷.
-- clients() -> Collection<SOOPChatClient> - 등록된 클라이언트 스냅샷.
-- <T extends BaseEvent> on(ChatEvent, StreamEventListener<T>) -> SOOPClient - 글로벌 리스너 등록. 모든 스트림 + 이후 추가되는 스트림에 자동 attach. 핸들러: (streamerId, event).
-- <T extends BaseEvent> off(ChatEvent, StreamEventListener<T>) -> SOOPClient - 글로벌 리스너 해제.
-- connectAll() -> CompletableFuture<Void> - 등록된 모든 클라이언트의 disconnect를 대기.
-- reconnect(String streamerId) -> CompletableFuture<Void> - tear-down + 새 연결로 강제 재연결. 현재 상태/진행 중 backoff 무시. RECONNECTING/DISCONNECTED/RECONNECTED 이벤트 emit. 미등록 bid면 IllegalArgumentException으로 실패.
-- reconnectAll() -> CompletableFuture<Void> - 등록된 모든 스트림에 강제 재연결 수행 후 모두 disconnect될 때까지 대기.
-- chat(String streamerId) -> SOOPChatClient - add()의 별칭(편의 메서드).
-- chat(SOOPChatConfig config) -> SOOPChatClient - add()의 별칭(편의 메서드).
-- close() - 모든 리소스 해제. try-with-resources 권장.
-
-### SOOPChatClient (채팅 클라이언트)
-
-채팅 연결 및 이벤트 구독. AutoCloseable 구현.
-
-이벤트 관리:
-- <T extends BaseEvent> on(ChatEvent event, EventListener<T> listener) -> SOOPChatClient - 이벤트 구독
-- <T extends BaseEvent> once(ChatEvent event, EventListener<T> listener) -> SOOPChatClient - 일회성 구독
-- <T extends BaseEvent> off(ChatEvent event, EventListener<T> listener) -> SOOPChatClient - 구독 해제
-
-연결:
-- connectToChat() -> CompletableFuture<Void> - 비동기 연결 (연결 해제 시 완료)
-- connectAndAwait() - 블로킹 연결 (연결 해제까지 대기)
-- disconnect() - 연결 해제
-- reconnect() -> CompletableFuture<Void> - 정상 연결 상태에서의 가벼운 재연결. 초기 미연결이면 실패.
-- forceReconnect() -> CompletableFuture<Void> - tear-down + 새 연결. 현재 상태/backoff 무시. RECONNECTING/RECONNECTED emit.
-- isConnected() -> boolean - 연결 상태 확인
-- getConnectionStatus() -> CompletableFuture<ConnectionStatus> - 상세 연결 상태
-
-채팅:
-- sendChat(String message) -> CompletableFuture<Void> - 채팅 전송 (인증 필요)
-
-기타:
-- getBid() -> String - 방송인 ID
-- getEventEmitter() -> EventEmitter - 이벤트 에미터 직접 접근
-
-### SOOPChatConfig.Builder (설정)
-
-| 메서드 | 타입 | 기본값 | 설명 |
-|--------|------|--------|------|
-| bid(String) | String | (필수) | 방송인 ID |
-| bno(String) | String | null (자동 해석) | 방송 번호 |
-| authCookie(AuthCookie) | AuthCookie | null (익명 모드) | 인증 쿠키 |
-| connectionTimeout(Duration) | Duration | 30초 | 연결 타임아웃 |
-| maxRetryAttempts(int) | int | 5 | 최대 재시도 횟수 |
-| pingIntervalSeconds(long) | long | 60 | 핑 전송 간격(초) |
-| initialPacketDelayMs(long) | long | 1000 | 초기 패킷 대기(ms) |
-| sslContext(SSLContext) | SSLContext | null | 커스텀 SSL 컨텍스트 |
-
-### SOOPAuth (인증)
-
-- signIn(String userId, String password) -> CompletableFuture<AuthCookie>
-
-AuthCookie record 필드: userId, success, rawResponse, authTicket, abroadChk, abroadVod, bbsTicket, rdb, userTicket, au, au3rd, ausa, ausb
-- isAuthenticated() -> boolean
-
-### SOOPLive (방송 정보)
-
-- getBno(String streamerId) -> CompletableFuture<String> - 방송 번호 조회
-- detail(String streamerId) -> CompletableFuture<LiveDetail> - 방송 상세 (BNO 자동 해석)
-- detail(String streamerId, String bno) -> CompletableFuture<LiveDetail>
-- detail(String streamerId, String bno, AuthCookie authCookie) -> CompletableFuture<LiveDetail>
-
-LiveDetail record 필드: bjId, bno, title, chatDomain, chatNo, ftk, chatPort, result, bps, geoCC, geoRC, acptLang, svcLang
-
-### SOOPChannel (채널 정보)
-
-- station(String streamerId) -> CompletableFuture<StationInfo>
-
-StationInfo record 필드: userId, userNickname, stationNo, stationName, stationTitle, isLive, totalFollowers
+→ 전체 메서드 시그니처 · `SOOPChatConfig.Builder` 옵션 · record 필드: [llms-full.txt § API 레퍼런스](llms-full.txt#api-레퍼런스)
 
 ## 이벤트 시스템
 
-### 이벤트 계층 (Sealed Interface)
+모든 이벤트는 Java `record`이며 sealed 계층에 속합니다. 공통 필드: `eventType()`, `raw()`, `timestamp()`.
 
+```
 BaseEvent (sealed)
-├── ChatBaseEvent - 채팅 관련 (메시지, 입퇴장)
-├── DonationBaseEvent - 후원 관련 (풍선, 초콜릿, 구독)
-├── SystemBaseEvent - 시스템 (연결, 서버 상태)
-├── ModerationBaseEvent - 관리 (킥, 채금, 차단)
-├── ItemBaseEvent - 아이템 (구매, 드롭)
-├── NotificationBaseEvent - 알림 (공지, 미션)
-└── UnknownEvent - 알 수 없는 타입
-
-모든 이벤트는 Java Record이며 공통 필드: eventType(), raw(), timestamp()
-
-### 이벤트 요약 테이블
-
-| 코드 | ChatEvent | Record | 카테고리 | 설명 |
-|------|-----------|--------|----------|------|
-| 0 | KEEP_ALIVE | KeepAliveEvent | System | 핑퐁 |
-| 1 | LOGIN | LoginEvent | System | 로그인 핸드셰이크 |
-| 2 | JOIN_CHANNEL | JoinChannelEvent | System | 채널 입장 핸드셰이크 |
-| 3 | QUIT_CHANNEL | QuitChannelEvent | System | 채널 퇴장 |
-| 4 | CHAT_USER | ChatUserEvent | System | 사용자 입퇴장 |
-| 5 | CHAT_MESSAGE | ChatMessageEvent | Chat | 채팅 메시지 |
-| 6 | SET_CHANNEL_NAME | SetChannelNameEvent | System | 채널 이름 설정 |
-| 7 | SET_BJ_STAT | SetBjStatEvent | System | BJ 상태 설정 |
-| 8 | SET_DUMB | SetDumbEvent | Moderation | 채금 |
-| 9 | DIRECT_CHAT | DirectChatEvent | Chat | 귓속말 |
-| 10 | NOTICE | NoticeEvent | Notification | 공지 |
-| 11 | KICK | KickEvent | Moderation | 강제 퇴장 |
-| 12 | SET_USER_FLAG | SetUserFlagEvent | System | 사용자 플래그 설정 |
-| 13 | SET_SUB_BJ | SetSubBjEvent | System | 서브 BJ 설정 |
-| 14 | SET_NICKNAME | SetNicknameEvent | System | 닉네임 설정 |
-| 15 | SERVER_STAT | ServerStatEvent | System | 서버 상태 |
-| 16 | NULL_16 | Null16Event | System | 미사용 |
-| 17 | CLUB_COLOR | ClubColorEvent | System | 클럽 색상 |
-| 18 | SEND_BALLOON | SendBalloonEvent | Donation | 별풍선 후원 |
-| 19 | ICE_MODE | IceModeEvent | System | 아이스 모드 |
-| 20 | SEND_FAN_LETTER | SendFanLetterEvent | Donation | 팬레터 전송 |
-| 21 | ICE_MODE_EX | IceModeExEvent | System | 확장 아이스 모드 |
-| 22 | GET_ICE_MODE_RELAY | GetIceModeRelayEvent | System | 아이스 모드 릴레이 |
-| 23 | SLOW_MODE | SlowModeEvent | Notification | 슬로우 모드 |
-| 24 | RELOAD_BURN_LEVEL | ReloadBurnLevelEvent | System | 번 레벨 리로드 |
-| 25 | BLIND_KICK | BlindKickEvent | Moderation | 블라인드 킥 |
-| 26 | MANAGER_CHAT | ManagerChatEvent | Chat | 매니저 채팅 |
-| 27 | APPEND_DATA | AppendDataEvent | System | 데이터 추가 |
-| 28 | BASEBALL_EVENT | BaseballEventEvent | Item | 야구 이벤트 |
-| 29 | PAID_ITEM | PaidItemEvent | Item | 유료 아이템 |
-| 30 | TOP_FAN | TopFanEvent | Donation | 열혈 팬 |
-| 31 | SNS_MESSAGE | SnsMessageEvent | Chat | SNS 메시지 |
-| 32 | SNS_MODE | SnsModeEvent | System | SNS 모드 |
-| 33 | SEND_BALLOON_SUB | SendBalloonSubEvent | Donation | 별풍선 (서브) |
-| 34 | SEND_FAN_LETTER_SUB | SendFanLetterSubEvent | Donation | 팬레터 (서브) |
-| 35 | TOP_FAN_SUB | TopFanSubEvent | Donation | 열혈 팬 (서브) |
-| 36 | BJ_STICKER_ITEM | BjStickerItemEvent | Item | BJ 스티커 아이템 |
-| 37 | CHOCOLATE | ChocolateEvent | Donation | 초콜릿 후원 |
-| 38 | CHOCOLATE_SUB | ChocolateEvent | Donation | 초콜릿 (서브) |
-| 39 | TOP_CLAN | TopClanEvent | Donation | 탑 클랜 |
-| 40 | TOP_CLAN_SUB | TopClanSubEvent | Donation | 탑 클랜 (서브) |
-| 41 | SUPER_CHAT | SuperChatEvent | Chat | 슈퍼챗 |
-| 42 | UPDATE_TICKET | UpdateTicketEvent | Item | 티켓 업데이트 |
-| 43 | NOTI_GAME_RANKER | NotiGameRankerEvent | System | 게임 랭커 알림 |
-| 44 | STAR_COIN | StarCoinEvent | Donation | 스타 코인 |
-| 45 | SEND_QUICK_VIEW | QuickViewEvent | Item | 퀵뷰 선물 |
-| 46 | ITEM_STATUS | ItemStatusEvent | Item | 아이템 상태 |
-| 47 | ITEM_USING | ItemUsingEvent | Item | 아이템 사용 중 |
-| 48 | USE_QUICK_VIEW | UseQuickViewEvent | Item | 퀵뷰 사용 |
-| 50 | NOTIFY_POLL | NotifyPollEvent | Notification | 투표 알림 |
-| 51 | CHAT_BLOCK_MODE | ChatBlockModeEvent | System | 채팅 차단 모드 |
-| 52 | BDM_ADD_BLACK_INFO | BdmAddBlackInfoEvent | System | 블랙리스트 추가 |
-| 53 | SET_BROAD_INFO | SetBroadInfoEvent | System | 방송 정보 설정 |
-| 54 | BAN_WORD | BanWordEvent | Moderation | 금지어 설정 |
-| 58 | SEND_ADMIN_NOTICE | SendAdminNoticeEvent | Moderation | 관리자 공지 |
-| 65 | FREECAT_OWNER_JOIN | FreecatOwnerJoinEvent | System | 프리캣 오너 입장 |
-| 70 | BUY_GOODS | BuyGoodsEvent | Item | 상품 구매 |
-| 71 | BUY_GOODS_SUB | BuyGoodsSubEvent | Item | 상품 구매 (서브) |
-| 72 | SEND_PROMOTION | SendPromotionEvent | Donation | 프로모션 |
-| 74 | NOTIFY_VR | NotifyVrEvent | System | VR 알림 |
-| 75 | NOTIFY_MOBBROAD_PAUSE | NotifyMobBroadPauseEvent | System | 모바일 방송 일시정지 |
-| 76 | KICK_AND_CANCEL | KickAndCancelEvent | Moderation | 강퇴 + 취소 |
-| 77 | KICK_USERLIST | KickUserListEvent | Moderation | 강퇴 사용자 목록 |
-| 78 | ADMIN_CHAT_USER | AdminChatUserEvent | Moderation | 관리자 채팅 사용자 |
-| 79 | CLI_DOBAE_INFO | CliDobaeInfoEvent | Moderation | 스팸 정보 |
-| 86 | VOD_BALLOON | VodBalloonEvent | Donation | VOD 풍선 |
-| 87 | ADCON_EFFECT | AdconEffectEvent | Donation | 애드콘 효과 |
-| 90 | KICK_MSG_STATE | KickMsgStateEvent | Moderation | 강퇴 메시지 상태 |
-| 91 | FOLLOW_ITEM | FollowItemEvent | Item | 신규 구독 |
-| 92 | ITEM_SELL_EFFECT | ItemSellEffectEvent | Item | 아이템 판매 효과 |
-| 93 | FOLLOW_ITEM_EFFECT | FollowItemEffectEvent | Item | 연속 구독 |
-| 94 | TRANSLATION_STATE | TranslationStateEvent | Notification | 번역 상태 |
-| 95 | TRANSLATION | TranslationEvent | Notification | 번역 |
-| 102 | GIFT_TICKET | GiftTicketEvent | Donation | 선물 티켓 |
-| 103 | VOD_ADCON | VodAdconEvent | Donation | VOD 애드콘 |
-| 104 | BJ_NOTICE | BjNoticeEvent | Notification | BJ 공지 |
-| 105 | VIDEO_BALLOON | VideoBalloonEvent | Donation | 영상 후원 |
-| 107 | STATION_ADCON | StationAdconEvent | Donation | 스테이션 애드콘 |
-| 108 | SEND_SUBSCRIPTION | SendSubscriptionEvent | Donation | 구독 선물 |
-| 109 | OGQ_EMOTICON | OGQEmoticonEvent | Item | OGQ 이모티콘 |
-| 110 | EMOTICON_TICKET | EmoticonTicketEvent | System | 이모티콘 티켓 |
-| 111 | ITEM_DROPS | ItemDropsEvent | Item | 아이템 드롭 |
-| 117 | VIDEO_BALLOON_LINK | VideoBalloonLinkEvent | Donation | 영상 풍선 링크 |
-| 118 | OGQ_EMOTICON_GIFT | GiftOGQEmoticonEvent | Donation | OGQ 이모티콘 선물 |
-| 119 | AD_IN_BROAD_JSON | AdInBroadJsonEvent | Item | 방송 내 광고 JSON |
-| 120 | GEM_ITEM_SEND | GemItemSendEvent | Donation | 보석 아이템 전송 |
-| 121 | MISSION | MissionEvent | Item | 챌린지 미션 |
-| 122 | LIVE_CAPTION | LiveCaptionEvent | Notification | 실시간 자막 |
-| 125 | MISSION_SETTLE | MissionSettleEvent | Item | 미션 정산 |
-| 126 | SET_ADMIN_FLAG | SetAdminFlagEvent | Moderation | 관리자 플래그 설정 |
-| 127 | CHUSER_EXTEND | ChuserExtendEvent | System | 구독자 목록 |
-| 128 | ADMIN_CHUSER_EXTEND | AdminChuserExtendEvent | Moderation | 관리자 채팅 사용자 확장 |
-| -2 | RAW | RawEvent | System | 원시 패킷 (디버깅) |
-| -3 | DISCONNECTED | DisconnectedEvent | System | 연결 해제 |
-| -4 | RECONNECTING | ReconnectingEvent | System | 재연결 시도 |
-| -5 | RECONNECTED | ReconnectedEvent | System | 재연결 완료 |
-| -1 | NONE_TYPE | UnknownEvent | — | 알 수 없는 타입 |
-
-### 전체 이벤트 Record 필드 상세
-
-모든 Record의 공통 필드: ChatEvent eventType, String raw, long timestamp
-아래 필드 목록에서는 공통 필드를 생략하고 이벤트 고유 필드만 표기합니다.
-
-#### ChatBaseEvent (채팅)
-
-CHAT_MESSAGE (5) — ChatMessageEvent
-  String message, String senderId, int type, int chatLang, String senderNickname, String senderFlag, String subscriptionMonth, String randomNicknameColor, String randomNicknameColorDarkmode
-
-DIRECT_CHAT (9) — DirectChatEvent
-  String message, String senderId, String receiverId, int type, String senderNickname, String receiverNickname, String flag
-
-MANAGER_CHAT (26) — ManagerChatEvent
-  String message, String senderId, int isAdmin, int chatLang, String senderNickname, String senderFlag, String subscriptionMonth
-
-SNS_MESSAGE (31) — SnsMessageEvent
-  String message
-
-SUPER_CHAT (41) — SuperChatEvent
-  (공통 필드만)
-
-#### DonationBaseEvent (후원)
-
-SEND_BALLOON (18) — SendBalloonEvent
-  String bjId, String senderId, String senderNickname, int count, int fanOrder, String fileName, boolean isDefault, int isTopFan, String ttsData
-
-SEND_BALLOON_SUB (33) — SendBalloonSubEvent
-  String bjId, String senderId, String senderNickname, int count, int fanOrder, String fileName, boolean isDefault, int isTopFan
-
-SEND_FAN_LETTER (20) — SendFanLetterEvent
-  String bjId, String bjNickname, String senderId, String senderNickname, int type, int count, String supporterOrder
-
-SEND_FAN_LETTER_SUB (34) — SendFanLetterSubEvent
-  String bjId, String bjNickname, String senderId, String senderNickname, int type, int count, String supporterOrder
-
-CHOCOLATE (37) — ChocolateEvent
-  String bjId, String senderId, String senderNickname, int count
-
-CHOCOLATE_SUB (38) — ChocolateEvent
-  String bjId, String senderId, String senderNickname, int count
-
-SEND_SUBSCRIPTION (108) — SendSubscriptionEvent
-  String senderId, String senderNickname, String receiverId, String receiverNickname, String subscriptionId, String subscriptionNickname, int itemType, String itemCode, int isSubscription, String subscriptionType, String subscriptionPeriod, int subscriptionRemain, int subscriptionPaycount
-
-VIDEO_BALLOON (105) — VideoBalloonEvent
-  String chatNo, String bjId, String userId, String userNickname, int balloonCount, int fanOrder, int isTopFan, String relay, String fileName, boolean isDefault, String extraData
-
-VOD_BALLOON (86) — VodBalloonEvent
-  String bjId, String senderId, String senderNickname, int balloonCount
-
-ADCON_EFFECT (87) — AdconEffectEvent
-  int chatNo, String bjId, String senderId, String senderNickname, String message, String message2, String title, String urlImg, String urlDefault, int adconCount, int fanOrder, int isTopFan, int isFanChief, int isSubRoom
-
-STATION_ADCON (107) — StationAdconEvent
-  String bjId, String userId, String userNickName, int adconCount, String isDefault, String adconMsg, String chatNumber
-
-GIFT_TICKET (102) — GiftTicketEvent
-  String senderId, String senderNickname, String receiverId, String receiverNickname, String ticketData
-
-OGQ_EMOTICON_GIFT (118) — GiftOGQEmoticonEvent
-  String senderId, String senderNick, String receivedId, String receivedNick, String ogqTitle, String ogqImageUrl
-
-GEM_ITEM_SEND (120) — GemItemSendEvent
-  String receiverId, String receiverNick, String itemName
-
-STAR_COIN (44) — StarCoinEvent
-  (공통 필드만)
-
-SEND_PROMOTION (72) — SendPromotionEvent
-  (공통 필드만)
-
-TOP_FAN (30) — TopFanEvent
-  (공통 필드만)
-
-TOP_FAN_SUB (35) — TopFanSubEvent
-  (공통 필드만)
-
-TOP_CLAN (39) — TopClanEvent
-  (공통 필드만)
-
-TOP_CLAN_SUB (40) — TopClanSubEvent
-  (공통 필드만)
-
-VIDEO_BALLOON_LINK (117) — VideoBalloonLinkEvent
-  (공통 필드만)
-
-VOD_ADCON (103) — VodAdconEvent
-  (공통 필드만)
-
-#### SystemBaseEvent (시스템)
-
-KEEP_ALIVE (0) — KeepAliveEvent
-  (공통 필드만)
-
-LOGIN (1) — LoginEvent
-  String userId, String userFlag
-
-JOIN_CHANNEL (2) — JoinChannelEvent
-  String chatNo, String bjId, int maxSubBjCount, String familyNickname, String userFlag
-
-QUIT_CHANNEL (3) — QuitChannelEvent
-  int quitType, int adminKickCount, String nickname, String bannedRoomBjId, String bannedRoomBjNickname
-
-CHAT_USER (4) — ChatUserEvent
-  int type, List<ChatUserEntry> userList
-
-SET_CHANNEL_NAME (6) — SetChannelNameEvent
-  String channelName
-
-SET_BJ_STAT (7) — SetBjStatEvent
-  (공통 필드만)
-
-ICE_MODE (19) — IceModeEvent
-  int iceMode
-
-ICE_MODE_EX (21) — IceModeExEvent
-  int iceMode, int freezeType, int balloonLimitCount, int subscriptionLimitCount
-
-GET_ICE_MODE_RELAY (22) — GetIceModeRelayEvent
-  int iceMode, int freezeType
-
-SET_USER_FLAG (12) — SetUserFlagEvent
-  String oldFlag, String userId, String userNickname, String newFlag
-
-SET_SUB_BJ (13) — SetSubBjEvent
-  String userId, String flag, int hide, String nickname
-
-SET_NICKNAME (14) — SetNicknameEvent
-  String userId, String newNickname, int changeType, String flag, String oldNickname
-
-SERVER_STAT (15) — ServerStatEvent
-  String serverStat
-
-NULL_16 (16) — Null16Event
-  (공통 필드만)
-
-CLUB_COLOR (17) — ClubColorEvent
-  (공통 필드만)
-
-APPEND_DATA (27) — AppendDataEvent
-  String appendData
-
-FREECAT_OWNER_JOIN (65) — FreecatOwnerJoinEvent
-  String chatNo, String bjId, int maxSubBjCount, String familyNickname, String userFlag
-
-SNS_MODE (32) — SnsModeEvent
-  int snsMode
-
-RELOAD_BURN_LEVEL (24) — ReloadBurnLevelEvent
-  int burnLevel
-
-EMOTICON_TICKET (110) — EmoticonTicketEvent
-  int value
-
-CHAT_BLOCK_MODE (51) — ChatBlockModeEvent
-  (공통 필드만)
-
-SET_BROAD_INFO (53) — SetBroadInfoEvent
-  (공통 필드만)
-
-BDM_ADD_BLACK_INFO (52) — BdmAddBlackInfoEvent
-  (공통 필드만)
-
-NOTIFY_MOB_BROAD_PAUSE (75) — NotifyMobBroadPauseEvent
-  int status
-
-NOTIFY_VR (74) — NotifyVrEvent
-  int action, String bjId, String vrId, String rtmp, String hls, int vrType
-
-NOTI_GAME_RANKER (43) — NotiGameRankerEvent
-  (공통 필드만)
-
-CHUSER_EXTEND (127) — ChuserExtendEvent
-  Map<String, Map<String, Integer>> userStatus
-
-DISCONNECTED (-3) — DisconnectedEvent
-  int statusCode, String reason, boolean causedByError
-
-RECONNECTING (-4) — ReconnectingEvent
-  int attemptNumber, int maxAttempts, long delayMs
-
-RECONNECTED (-5) — ReconnectedEvent
-  int totalAttempts
-
-NONE_TYPE (-1) — NoneTypeEvent
-  int value
-
-RAW (-2) — RawEvent
-  (공통 필드만, raw에 원시 패킷 전체 포함)
-
-#### ModerationBaseEvent (관리)
-
-SET_DUMB (8) — SetDumbEvent
-  String userId, String userInfo, int dumbTime, int dumbCount, String adminId, int adminType, String extraInfo, String userNickname
-
-KICK (11) — KickEvent
-  String userId, String userNickname, int kickType, String reason, String kickerNickname
-
-BLIND_KICK (25) — BlindKickEvent
-  String userId, String userNickname, int blindTime
-
-BAN_WORD (54) — BanWordEvent
-  String replaceWord, String[] banWordList
-
-SEND_ADMIN_NOTICE (58) — SendAdminNoticeEvent
-  String message
-
-KICK_AND_CANCEL (76) — KickAndCancelEvent
-  int status, String userId, String userNickname
-
-KICK_USERLIST (77) — KickUserListEvent
-  List<KickedUser> kickedUsers
-
-ADMIN_CHAT_USER (78) — AdminChatUserEvent
-  String type, List<AdminChatUserEntry> users
-
-CLI_DOBAE_INFO (79) — CliDobaeInfoEvent
-  int dobaeInfo, String userId
-
-KICK_MSG_STATE (90) — KickMsgStateEvent
-  String chatNo, boolean isHideKickMessage
-
-SET_ADMIN_FLAG (126) — SetAdminFlagEvent
-  String flag
-
-ADMIN_CHUSER_EXTEND (128) — AdminChuserExtendEvent
-  (공통 필드만)
-
-#### ItemBaseEvent (아이템)
-
-OGQ_EMOTICON (109) — OGQEmoticonEvent
-  String chatNo, String message, String groupId, String subId, String version, String userInfo, String color, String chatLang, String type
-
-SEND_QUICK_VIEW (45) — QuickViewEvent
-  String senderId, String senderNickname, String receiverId, String receiverNickname, int itemType
-
-BUY_GOODS (70) — BuyGoodsEvent
-  int goodsType, String bjId, String buyerId, String buyerNickname, String goodsName, int goodsCount, int relay
-
-BUY_GOODS_SUB (71) — BuyGoodsSubEvent
-  int goodsType, String bjId, String buyerId, String buyerNickname, String goodsName, int goodsCount, int relay
-
-PAID_ITEM (29) — PaidItemEvent
-  int itemType, String bjId, String buyerId, String buyerNickname, String itemName, int itemCount
-
-ITEM_DROPS (111) — ItemDropsEvent
-  String bjId, String dropsName, String dropsMsg, String dropsImgUrl
-
-ITEM_USING (47) — ItemUsingEvent
-  String bjId, int itemType, int remainTime
-
-FOLLOW_ITEM (91) — FollowItemEvent
-  int chatNo, String recvId, String sendId, String sendNick, int type
-
-FOLLOW_ITEM_EFFECT (93) — FollowItemEffectEvent
-  String bjId, String sendId, String sendNick, int month, int chatNo
-
-MISSION (121) — MissionEvent
-  Map<String, Object> data
-
-MISSION_SETTLE (125) — MissionSettleEvent
-  Map<String, Object> data
-
-AD_IN_BROAD_JSON (119) — AdInBroadJsonEvent
-  Map<String, Object> data
-
-BJ_STICKER_ITEM (36) — BjStickerItemEvent
-  int type
-
-BASEBALL_EVENT (28) — BaseballEventEvent
-  String eventData
-
-ITEM_STATUS (46) — ItemStatusEvent
-  (공통 필드만)
-
-ITEM_SELL_EFFECT (92) — ItemSellEffectEvent
-  (공통 필드만)
-
-UPDATE_TICKET (42) — UpdateTicketEvent
-  (공통 필드만)
-
-USE_QUICK_VIEW (48) — UseQuickViewEvent
-  (공통 필드만)
-
-#### NotificationBaseEvent (알림)
-
-NOTICE (10) — NoticeEvent
-  String message
-
-BJ_NOTICE (104) — BjNoticeEvent
-  int show, String message
-
-LIVE_CAPTION (122) — LiveCaptionEvent
-  String caption
-
-SLOW_MODE (23) — SlowModeEvent
-  int autotime, int manualtime
-
-NOTIFY_POLL (50) — NotifyPollEvent
-  int status, String bjId, int no, int show
-
-TRANSLATION (95) — TranslationEvent
-  int idx, int mode, String message, int orgLanguage, int transLanguage
-
-TRANSLATION_STATE (94) — TranslationStateEvent
-  int state
-
-#### UnknownEvent
-
-NONE_TYPE (-1) — UnknownEvent
-  int code, String originalMessage
-
-### Fixture 검증 실제 데이터 (30개 이벤트)
-
-실제 수집된 패킷 fixture로 디코딩이 검증된 이벤트 및 필드 값 예시입니다.
-
-**ADCON_EFFECT** — 애드벌룬 후원
-  bjId="r*******d", senderId="o*******0", senderNickname="온*온", adconCount=200
-  message="애드벌룬 200개 선물!", message2="애드벌룬 200개를 선물했습니다!", urlImg="https://res.sooplive.com/..."
-
-**BAN_WORD** — 금지어 설정
-  replaceWord="***" (금지어 대체 표시 텍스트), banWordList=["***..."] (금지어 배열)
-
-**BJ_NOTICE** — BJ 공지
-  show=1 (1=표시, 0=숨김), message="***" (공지 텍스트, HTML 허용)
-
-**BJ_STICKER_ITEM** — BJ 스티커 아이템 이벤트
-  type=4
-
-**CHAT_MESSAGE** — 채팅 메시지
-  message="쎈바론인데 ㅅ*", senderId="k*****l", senderNickname="보***뎃"
-  senderFlag="81952|32768", subscriptionMonth="-1" (-1=비구독), chatLang=3
-  randomNicknameColor="0C61E1", randomNicknameColorDarkmode="5C82E3"
-
-**CHAT_USER** — 사용자 입퇴장 목록
-  type=1 (입장), userList.size=40 (최대 40명의 유저 일괄 전달)
-  각 항목: id (로그인 ID, "(N)" 접미사는 멀티 로그인 번호), nickname, flag (비트 플래그)
-
-**CHUSER_EXTEND** — 구독자 상태 확장 정보
-  userStatus.size=13, 키는 "fw=N&afw=N" 형식 (fw=팔로우 수, afw=실제 팔로우)
-
-**EMOTICON_TICKET** — 이모티콘 사용권 (채널 입장 직후 수신)
-  value=1
-
-**FOLLOW_ITEM** — 신규 구독 (구독 아이템 발송)
-  chatNo=7450, recvId="n*****i" (BJ ID), sendId="b****i", sendNick="솜***우", type=111
-
-**FOLLOW_ITEM_EFFECT** — 연속 구독 효과
-  bjId="l*****9", sendId="s*****0", sendNick="오***개", month=27 (연속 구독 개월 수), chatNo=2300
-
-**ICE_MODE** — 아이스 모드 (별풍선 0개로 후원 제한)
-  iceMode=1 (1=활성화, 0=비활성화)
-
-**ICE_MODE_EX** — 확장 아이스 모드
-  iceMode=1, freezeType=1008, balloonLimitCount=1 (최소 풍선 수), subscriptionLimitCount=1
-
-**ITEM_DROPS** — 아이템 드롭 이벤트
-  bjId="t*****8", dropsName="컬쳐랜드 1만원", dropsMsg="" (선택적 메시지), dropsImgUrl="" (선택적 이미지 URL)
-
-**JOIN_CHANNEL** — 채널 입장 핸드셰이크 응답
-  chatNo="****", bjId="b****d", maxSubBjCount=10, familyNickname="" (패밀리방 시 값), userFlag="16|16384"
-
-**KICK_MSG_STATE** — 강퇴 메시지 표시 상태
-  chatNo="****" (채팅방 번호), isHideKickMessage=false (강퇴 메시지 표시 여부)
-
-**LOGIN** — 로그인 핸드셰이크 응답
-  userId="" (익명 연결 시 빈 문자열), userFlag="16|0"
-
-**MISSION** — 챌린지 미션 알림 (JSON)
-  data keys: [type, mission_status, title, key, uuid]
-  예: type="CHALLENGE_NOTICE", mission_status="FAIL", title="***"
-
-**MISSION_SETTLE** — 미션 정산 결과 (JSON)
-  data keys: [chno, fanOrder, list, uuid]
-  예: chno=****, fanOrder=****, list=[["u****d", "닉***", 금액, ...]]
-
-**OGQ_EMOTICON** — OGQ 이모티콘 사용
-  chatNo="****", groupId="***" (이모티콘 그룹 UUID), subId="3", version="1"
-  userInfo="u****r(2)" (사용자 ID), color="닉***" (닉네임), chatLang="플래그값" (비트 플래그)
-
-**OGQ_EMOTICON_GIFT** — OGQ 이모티콘 선물
-  senderId="y*****2", senderNick="원***♥", receivedId="s*******2", receivedNick="룰***롤"
-  ogqTitle="***" (스티커팩 이름), ogqImageUrl="//ogq-sticker-global-cdn-z01.sooplive.com/..."
-
-**SEND_BALLOON** — 별풍선 후원
-  bjId="r*******d", senderId="p*****0", senderNickname="여***용", count=3000
-  fanOrder=0, fileName="3000" (풍선 수량 효과 파일명), isDefault=false, ttsData="yumi" (TTS 캐릭터)
-
-**SEND_QUICK_VIEW** — 퀵뷰 선물
-  senderId="j*******3", senderNickname="JD_***동", receiverId="d*****2", receiverNickname="JD_***강"
-  itemType=101
-
-**SEND_SUBSCRIPTION** — 구독 선물
-  senderId="r*******d", senderNickname="***김택용", receiverId="p*****0", receiverNickname="***연애"
-  itemType=11, itemCode="***" (서버 생성 구독 코드), isSubscription=0, subscriptionType="0"
-
-**SET_BJ_STAT** — BJ 상태 변경 (방송 연결 해제 시 수신)
-  공통 필드만 포함 (eventType, raw, timestamp)
-
-**SET_DUMB** — 채금 (채팅 금지)
-  userId="b*****e", userNickname="연***", dumbTime=30 (초), dumbCount=1
-  adminId="j*******3", adminType=1 (1=방송인, 2=매니저), extraInfo="" (추가 정보)
-
-**SET_NICKNAME** — 닉네임 변경
-  userId="m*******8", newNickname="딩***3", oldNickname="항***잉", changeType=0, flag="65536|163840"
-
-**SET_SUB_BJ** — 서브 BJ 설정
-  userId="g*****u", nickname="건:]", flag="269025632|688128", hide=0 (0=표시)
-
-**SET_USER_FLAG** — 사용자 플래그 변경 (입장 등급 변경 시)
-  userId="w*******5", userNickname="물***다", oldFlag="720928|163840", newFlag="589856|163840"
-
-**TRANSLATION_STATE** — 번역 기능 상태
-  state=1 (1=활성화, 0=비활성화)
-
-**VIDEO_BALLOON** — 영상 후원 (영상 별풍선)
-  chatNo="****", bjId="b****d", userId="u*****r", userNickname="닉***"
-  balloonCount=9, fanOrder=0, isDefault=true, relay="0", extraData="61ac***"
-
-### 코드표 (Code Tables)
-
-`com.github.getcurrentthread.soopapi.code` 패키지. 원시 코드를 타입으로 지연 디코딩하는 접근자 제공(원시 필드는 유지, 호출 시 파싱).
-
-- UserLevel.parse("주|보조") -> UserLevel(Set<UserFlag> primary, Set<UserFlag2> secondary)
-  - 접근자: ChatMessageEvent.senderLevel(), ChatUserEntry.level(), AdminChatUserEntry.level(),
-    LoginEvent.userLevel(), JoinChannelEvent.userLevel(), SetUserFlagEvent.oldLevel()/newLevel(), SetAdminFlagEvent.level()
-  - UserFlag(주): ADMIN=1, BJ=4, GUEST=16, FANCLUB=32, MANAGER=256, TOPFAN=32768, FOLLOWER=1<<28, NOTITOPFAN=1<<31 …
-  - UserFlag2(보조): GLOBAL_PC=1, CLAN=2, TOPCLAN=4, ADMINCHAT=8192, PC=16384 … (주/보조 비트값이 겹치므로 enum 분리)
-  - level.has(UserFlag) / level.has(UserFlag2) 로 포함 여부 확인
-- ChatIceType.fromCode(int) -> CLEAR/NORMAL/FAN/SUP/FAN_SUP (레거시 0~4), 그 외 UNKNOWN
-  - ChatIceType.Flag.fromMask(int) -> v2 비트 플래그(NORMAL2=16, FAN2=32, SUP2=64, TOP_FAN2=128, FOLLOWER2=256)
-  - 접근자: IceModeEvent/IceModeExEvent/GetIceModeRelayEvent 의 iceType(), iceFlags(), isIceFlagMode()
-- ChatQuitStatus.fromCode(int) -> CLOSED/NORMAL/KCIK/DUMB/OVERCHAT/BLIND/ADMKICK, 그 외 UNKNOWN
-  - 접근자: QuitChannelEvent.quitStatus()
-
-알 수 없는 코드는 센티넬(UNKNOWN / UserLevel.EMPTY)을 반환하며 예외를 던지지 않습니다.
-
-### EventEmitter
-
-- on(ChatEvent, EventListener) - 이벤트 구독
-- once(ChatEvent, EventListener) - 일회성 구독
-- off(ChatEvent, EventListener) - 구독 해제
-- setErrorHandler(Consumer<EventEmitterException>) - 에러 핸들러 설정
-- clear() - 모든 리스너 제거
-- clear(ChatEvent) - 특정 이벤트의 리스너 제거
-- hasListeners(ChatEvent) -> boolean - 리스너 존재 여부
-
-## 연결 라이프사이클
-
-`SOOPClient.add()`는 등록과 동시에 비동기 연결을 시작하므로 별도의 connectToChat() 호출이 필요 없습니다.
-저수준 SOOPChatClient를 직접 쓸 때만 connectToChat()/connectAndAwait()를 사용합니다.
-connectToChat()이 반환하는 CompletableFuture는 v0.5.0부터 연결이 해제될 때 완료됩니다.
-
-| 메서드 | 동작 |
-|--------|------|
-| SOOPClient.add(streamerId) | 등록 + 즉시 비동기 연결. dedup된 기존 인스턴스는 필요 시 재연결. |
-| SOOPClient.connectAll() | 등록된 모든 클라이언트의 disconnect를 대기하는 CompletableFuture<Void> 반환. |
-| SOOPClient.remove(streamerId) | 개별 disconnect + 등록 해제. |
-| SOOPClient.close() | 모든 클라이언트 종료 + HTTP 리소스 해제. try-with-resources 권장. |
-| SOOPChatClient.connectToChat() | (저수준) 연결 해제 시 완료되는 CompletableFuture<Void> 반환. Idempotent. |
-| SOOPChatClient.connectAndAwait() | (저수준) connectToChat().join()의 편의 메서드 (블로킹). |
-
-## 에러 처리
-
-### 예외 계층
-
-SOOPChatException (RuntimeException)
-├── AuthenticationException - 로그인 실패, 미인증 상태에서 sendChat() 호출
-├── ConnectionException - WebSocket/HTTP 연결 실패
-└── EventEmitterException - 이벤트 리스너에서 발생한 예외
-
-EventEmitterException 추가 메서드:
-- getChatEvent() -> ChatEvent - 오류가 발생한 이벤트
+├── ChatBaseEvent          채팅 (메시지, 입퇴장)
+├── DonationBaseEvent      후원 (풍선, 초콜릿, 구독)
+├── SystemBaseEvent        시스템 (연결, 서버 상태)
+├── ModerationBaseEvent    관리 (킥, 채금, 차단)
+├── ItemBaseEvent          아이템 (구매, 드롭)
+├── NotificationBaseEvent  알림 (공지, 미션)
+└── UnknownEvent           알 수 없는 타입
+```
+
+- 서비스 코드 `0`~`128` + 클라이언트 합성 이벤트(`-2` RAW, `-3` DISCONNECTED, `-4` RECONNECTING, `-5` RECONNECTED, `-1` NONE_TYPE).
+- `ChatEvent.fromCode(int)`는 미지의 코드에 대해 `NONE_TYPE`(센티넬)을 반환합니다.
+- 자주 쓰는 이벤트:
+
+| 코드 | ChatEvent | Record | 설명 |
+|------|-----------|--------|------|
+| 5 | CHAT_MESSAGE | ChatMessageEvent | 채팅 메시지 |
+| 9 | DIRECT_CHAT | DirectChatEvent | 귓속말 |
+| 18 | SEND_BALLOON | SendBalloonEvent | 별풍선 후원 |
+| 37 | CHOCOLATE | ChocolateEvent | 초콜릿 후원 |
+| 108 | SEND_SUBSCRIPTION | SendSubscriptionEvent | 구독 선물 |
+| 11 | KICK | KickEvent | 강제 퇴장 |
+| 8 | SET_DUMB | SetDumbEvent | 채금 |
+
+→ 전체 코드↔이벤트 표(범주별): [llms-full.txt § 전체 이벤트 목록](llms-full.txt#전체-이벤트-목록)
+→ 이벤트별 record 필드 상세: [llms-full.txt § 이벤트 Record 필드 상세](llms-full.txt#이벤트-record-필드-상세)
+→ 실제 캡처 패킷의 필드 값 예시(30개): [llms-full.txt § Fixture 검증 데이터](llms-full.txt#fixture-검증-데이터-30개-이벤트-실제-캡처)
+
+## 코드표 (지연 디코딩)
+
+`...soopapi.code` 패키지가 원시 코드/플래그를 타입으로 **지연 디코딩**합니다. 원시 필드(String/int)는 그대로 유지되고, 이벤트 record의 접근자가 **호출 시점에만** 파싱합니다. 알 수 없는 코드는 센티넬(`UNKNOWN` / `UserLevel.EMPTY`)을 반환하며 예외를 던지지 않습니다.
+
+- `UserLevel.parse("주|보조")` → `UserFlag`(주) · `UserFlag2`(보조) 집합. 두 그룹은 비트값이 겹쳐 enum을 분리(예: 16 = GUEST(주) vs GAMEGOD(보조)). 부호 비트(`NOTITOPFAN = 1<<31`)는 `(mask & bit) == bit`로 안전 처리.
+  - 접근자: `ChatMessageEvent.senderLevel()`, `LoginEvent.userLevel()`, `JoinChannelEvent.userLevel()`, `SetUserFlagEvent.oldLevel()/newLevel()`, `SetAdminFlagEvent.level()`, `ChatUserEntry.level()`, `AdminChatUserEntry.level()`.
+- `ChatIceType.fromCode(int)`(레거시 0~4) + `ChatIceType.Flag.fromMask(int)`(v2 비트). 접근자: `IceModeEvent`/`IceModeExEvent`/`GetIceModeRelayEvent`의 `iceType()`, `iceFlags()`, `isIceFlagMode()`.
+- `ChatQuitStatus.fromCode(int)`(0~6). 접근자: `QuitChannelEvent.quitStatus()`.
+
+→ 플래그 비트값 · 접근자 전체 목록: [llms-full.txt § 코드표 및 플래그 해석](llms-full.txt#코드표-및-플래그-해석)
+
+## 연결 라이프사이클 & 에러 처리
+
+- `SOOPClient.add()`는 등록과 동시에 비동기 연결을 시작하므로 별도 `connectToChat()`이 불필요합니다. 저수준 `SOOPChatClient`를 직접 쓸 때만 `connectToChat()`/`connectAndAwait()`를 사용합니다.
+- `connectToChat()`이 반환하는 `CompletableFuture`는 v0.5.0부터 연결이 해제될 때 완료됩니다.
+- 예외 계층: `SOOPChatException`(RuntimeException) ← `AuthenticationException` · `ConnectionException` · `EventEmitterException`(`getChatEvent()` 제공).
+
+→ 상세: [llms-full.txt § connectToChat() 동작 방식](llms-full.txt#connecttochat-동작-방식) · [§ 에러 처리](llms-full.txt#에러-처리)
+
+## 더 알아보기 (llms-full.txt)
+
+기여자·심화용 레퍼런스는 전부 [llms-full.txt](llms-full.txt)에 있습니다.
+
+- 아키텍처 개요(패키지 구조 · 컴포넌트 관계 · 메시지 파이프라인) → [§ 아키텍처 개요](llms-full.txt#아키텍처-개요-기여자용)
+- 내부 구조 상세(ConnectionManager · SOOPConnection · WebSocketManager · Listener) → [§ 내부 구조 상세](llms-full.txt#내부-구조-상세)
+- WebSocket 프로토콜(패킷 구조 · 명령 코드 · 구분자 · 핸드셰이크) → [§ WebSocket 프로토콜](llms-full.txt#websocket-프로토콜)
+- 디코더 시스템(IMessageDecoder · 팩토리 · 디코딩 규칙) → [§ 디코더 시스템](llms-full.txt#디코더-시스템)
+- 이벤트 시스템 내부(EventEmitter · once() 구현 · sealed 계층) → [§ 이벤트 시스템 내부](llms-full.txt#이벤트-시스템-내부)
+- 테스트 · 빌드 시스템 · 기여 가이드 · 성능 고려사항 → [§ 테스트](llms-full.txt#테스트) · [§ 빌드 시스템](llms-full.txt#빌드-시스템) · [§ 기여 가이드](llms-full.txt#기여-가이드) · [§ 성능 고려사항](llms-full.txt#성능-고려사항)
 
 ## 면책 조항
 
